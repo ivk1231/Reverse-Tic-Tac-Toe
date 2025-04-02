@@ -265,7 +265,7 @@ function createRoom() {
                         
                         // Update UI
                         displayRoomCode.textContent = roomId;
-                        onlineTurnInfo.textContent = "Waiting for opponent...";
+                        onlineTurnInfo.textContent = "Your Turn (X)";
                         
                         // Create the board UI
                         createOnlineGameBoard(gridSize);
@@ -316,19 +316,27 @@ function joinRoom() {
         return;
     }
     
+    console.log("Attempting to join room:", code);
+    joinError.classList.add('hidden');
+    connectionStatus.textContent = "Connecting to room...";
+    
     // Check if room exists
     const roomRef = firebase.database().ref('rooms/' + code);
     roomRef.once('value')
         .then(snapshot => {
             if (!snapshot.exists()) {
+                console.log("Room not found:", code);
                 joinError.classList.remove('hidden');
                 joinError.textContent = "Room not found. Please check the code.";
                 return;
             }
             
             const data = snapshot.val();
+            console.log("Room found:", data);
+            
             // Check if room already has 2 players
             if (data.players && data.players.o) {
+                console.log("Room is full");
                 joinError.classList.remove('hidden');
                 joinError.textContent = "Room is full.";
                 return;
@@ -338,15 +346,28 @@ function joinRoom() {
             playerSymbol = 'o';  // Second player is always O
             roomId = code;
             
+            console.log("Joining as player:", playerSymbol);
+            
             // Update room data to include the second player
             return roomRef.child('players').update({ 'o': true })
                 .then(() => {
+                    console.log("Successfully joined room");
+                    
                     // Hide lobby, show game
                     onlineLobby.classList.add('hidden');
                     onlineGame.classList.remove('hidden');
                     
                     // Update UI
                     displayRoomCode.textContent = code;
+                    
+                    // Set up proper turn information
+                    if (data.currentTurn === playerSymbol) {
+                        onlineTurnInfo.textContent = `Your Turn (${playerSymbol.toUpperCase()})`;
+                        onlineTurnInfo.style.color = 'var(--o-color)';
+                    } else {
+                        onlineTurnInfo.textContent = "Opponent's Turn";
+                        onlineTurnInfo.style.color = 'var(--text-color)';
+                    }
                     
                     // Set up game board
                     this.roomRef = roomRef;
@@ -356,12 +377,17 @@ function joinRoom() {
                     
                     // Create the board UI
                     createOnlineGameBoard(data.gridSize);
+                    
+                    // Update the board with existing moves
+                    if (data.board) {
+                        updateOnlineGameBoard(data.board);
+                    }
                 });
         })
         .catch(error => {
             console.error("Error joining room:", error);
             joinError.classList.remove('hidden');
-            joinError.textContent = "Error joining room. Please try again.";
+            joinError.textContent = "Error joining room: " + error.message;
         });
 }
 
@@ -412,10 +438,16 @@ function listenForOpponent() {
 function listenForGameStateChanges() {
     if (!roomRef) return;
     
+    console.log("Setting up game state listener for room:", roomId);
+    
     roomRef.on('value', snapshot => {
         const data = snapshot.val();
-        if (!data) return;
+        if (!data) {
+            console.error("No data received from Firebase for room:", roomId);
+            return;
+        }
         
+        console.log("Game state update received:", data);
         onlineGameData = data;
         
         // Update the board UI
@@ -424,9 +456,12 @@ function listenForGameStateChanges() {
         // Update turn info
         if (data.gameActive) {
             if (data.currentTurn === playerSymbol) {
-                onlineTurnInfo.textContent = "Your Turn";
+                onlineTurnInfo.textContent = `Your Turn (${playerSymbol.toUpperCase()})`;
+                // Add a visual indicator that it's your turn
+                onlineTurnInfo.style.color = playerSymbol === 'x' ? 'var(--x-color)' : 'var(--o-color)';
             } else {
-                onlineTurnInfo.textContent = "Opponent's Turn";
+                onlineTurnInfo.textContent = `Opponent's Turn`;
+                onlineTurnInfo.style.color = 'var(--text-color)';
             }
         }
         
@@ -434,12 +469,15 @@ function listenForGameStateChanges() {
         if (data.winner) {
             if (data.winner === playerSymbol) {
                 onlineTurnInfo.textContent = "You Lose!";
+                onlineTurnInfo.style.color = 'var(--accent-color)';
             } else {
                 onlineTurnInfo.textContent = "You Win!";
+                onlineTurnInfo.style.color = 'green';
             }
             highlightWinningCells(onlineBoard, data.board, data.winner);
         } else if (data.draw) {
             onlineTurnInfo.textContent = "It's a Draw!";
+            onlineTurnInfo.style.color = 'var(--text-color)';
         }
         
         // Check for restart requests
@@ -479,8 +517,14 @@ function listenForGameStateChanges() {
         if (!data.players || !data.players[otherPlayer]) {
             connectionStatus.textContent = "Opponent disconnected.";
         } else {
-            connectionStatus.textContent = "";
+            // Only clear this specific message
+            if (connectionStatus.textContent === "Opponent disconnected.") {
+                connectionStatus.textContent = "";
+            }
         }
+    }, error => {
+        console.error("Error in game state listener:", error);
+        connectionStatus.textContent = "Error: " + error.message;
     });
 }
 
@@ -505,14 +549,28 @@ function createOnlineGameBoard(size) {
 }
 
 function updateOnlineGameBoard(board) {
-    if (!board) return;
+    if (!board) {
+        console.error("No board data provided to updateOnlineGameBoard");
+        return;
+    }
+    
+    console.log("Updating board UI with:", board);
     
     // Update each cell in the UI
     const cells = onlineBoard.querySelectorAll('.cell');
     
+    if (cells.length !== board.length * board.length) {
+        console.error(`Cell count mismatch: UI has ${cells.length} cells, data has ${board.length}x${board.length}`);
+    }
+    
     board.forEach((row, rowIndex) => {
         row.forEach((value, colIndex) => {
             const index = rowIndex * board.length + colIndex;
+            if (index >= cells.length) {
+                console.error(`Cell index out of bounds: ${index} >= ${cells.length}`);
+                return;
+            }
+            
             const cell = cells[index];
             
             // Clear existing classes
@@ -522,6 +580,7 @@ function updateOnlineGameBoard(board) {
             if (value) {
                 cell.textContent = value.toUpperCase();
                 cell.classList.add(value);
+                console.log(`Set cell ${rowIndex},${colIndex} to ${value}`);
             } else {
                 cell.textContent = '';
             }
@@ -530,38 +589,71 @@ function updateOnlineGameBoard(board) {
 }
 
 function handleOnlineCellClick(e) {
-    if (!onlineGameData || !onlineGameData.gameActive) return;
-    if (onlineGameData.currentTurn !== playerSymbol) return;
+    if (!onlineGameData || !onlineGameData.gameActive) {
+        console.log("Game not active, ignoring click");
+        return;
+    }
+    
+    if (onlineGameData.currentTurn !== playerSymbol) {
+        console.log("Not your turn, ignoring click");
+        return;
+    }
     
     const row = parseInt(e.target.dataset.row);
     const col = parseInt(e.target.dataset.col);
     
+    console.log(`Cell clicked: row ${row}, col ${col}`);
+    
     // Check if the cell is already filled
-    if (onlineGameData.board[row][col] !== '') return;
+    if (onlineGameData.board[row][col] !== '') {
+        console.log("Cell already filled, ignoring click");
+        return;
+    }
     
     // Create a deep copy of the board
     const updatedBoard = JSON.parse(JSON.stringify(onlineGameData.board));
     updatedBoard[row][col] = playerSymbol;
     
+    console.log("Updated board:", updatedBoard);
+    
     // Check for win/draw
     let updates = {
         board: updatedBoard,
-        currentTurn: playerSymbol === 'x' ? 'o' : 'x'
+        currentTurn: playerSymbol === 'x' ? 'o' : 'x',
+        lastUpdated: Date.now()
     };
+    
+    console.log("Preparing updates:", updates);
     
     // Check for a win (in Reverse Tic-Tac-Toe, three in a row loses)
     if (checkWin(updatedBoard, playerSymbol, 3)) {
         updates.gameActive = false;
         updates.winner = playerSymbol;
+        console.log("Win condition detected");
     } else if (checkDraw(updatedBoard)) {
         updates.gameActive = false;
         updates.draw = true;
+        console.log("Draw condition detected");
     }
     
+    // Provide immediate feedback by updating the UI before Firebase confirms
+    e.target.textContent = playerSymbol.toUpperCase();
+    e.target.classList.add(playerSymbol);
+    onlineTurnInfo.textContent = "Opponent's Turn";
+    onlineTurnInfo.style.color = 'var(--text-color)';
+    
     // Update the game state in Firebase
+    console.log("Sending updates to Firebase:", updates);
     roomRef.update(updates)
+        .then(() => {
+            console.log("Move successfully updated in Firebase");
+        })
         .catch(error => {
             console.error("Error updating game state:", error);
+            // Revert UI changes if the update fails
+            e.target.textContent = '';
+            e.target.classList.remove(playerSymbol);
+            alert("Error making move: " + error.message + ". Please try again.");
         });
 }
 
