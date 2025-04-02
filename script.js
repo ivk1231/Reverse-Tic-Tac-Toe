@@ -41,6 +41,11 @@ let playerSymbol = '';
 let roomId = '';
 let roomRef = null;
 
+// Check if Firebase is initialized and connected
+function isFirebaseConnected() {
+    return typeof firebase !== 'undefined' && firebase && firebase.apps && firebase.apps.length > 0;
+}
+
 // Initialize the game
 function init() {
     // Set event listeners
@@ -167,37 +172,139 @@ function restartOfflineGame() {
 
 // Online Game Functions
 function createRoom() {
+    console.log("createRoom function called");
+    
+    // Check if Firebase is initialized
+    if (typeof firebase === 'undefined') {
+        console.error("Firebase is not defined - script might not be loaded");
+        alert("Cannot connect to Firebase: Firebase scripts not loaded. Please refresh the page and try again.");
+        return;
+    }
+    
+    if (!firebase.apps || firebase.apps.length === 0) {
+        console.error("Firebase apps array is empty - Firebase not initialized properly");
+        alert("Cannot connect to Firebase: Initialization failed. Please refresh the page and try again.");
+        return;
+    }
+    
+    try {
+        // Test if we can access the database
+        const testRef = firebase.database();
+        if (!testRef) {
+            throw new Error("Database reference is null or undefined");
+        }
+        console.log("Firebase database access confirmed");
+    } catch (dbError) {
+        console.error("Firebase database access error:", dbError);
+        alert("Cannot connect to Firebase database. Online mode is unavailable: " + dbError.message);
+        return;
+    }
+    
+    console.log("Firebase connection verified");
+    
     gridSize = parseInt(gridSizeSelect.value);
     roomId = generateRoomCode();
     playerSymbol = 'x';  // Host is always X
     
+    console.log("Generated room code:", roomId);
+    
     // Create a new room in Firebase
-    roomRef = firebase.database().ref('rooms/' + roomId);
-    
-    const initialGameState = {
-        gridSize: gridSize,
-        board: Array(gridSize).fill().map(() => Array(gridSize).fill('')),
-        currentTurn: 'x',
-        players: { 'x': true },
-        gameActive: true,
-        restartRequested: { 'x': false, 'o': false }
-    };
-    
-    roomRef.set(initialGameState)
-        .then(() => {
-            roomCodeSpan.textContent = roomId;
-            roomCreated.classList.remove('hidden');
-            
-            // Listen for opponent joining
-            listenForOpponent();
-            
-            // Listen for game state changes
-            listenForGameStateChanges();
-        })
-        .catch(error => {
-            console.error("Error creating room:", error);
-            connectionStatus.textContent = "Error creating room. Please try again.";
-        });
+    try {
+        roomRef = firebase.database().ref('rooms/' + roomId);
+        console.log("Room reference created:", roomId);
+        
+        // Show "Creating room..." feedback
+        connectionStatus.textContent = "Creating room...";
+        
+        const initialGameState = {
+            gridSize: gridSize,
+            board: Array(gridSize).fill().map(() => Array(gridSize).fill('')),
+            currentTurn: 'x',
+            players: { 'x': true },
+            gameActive: true,
+            restartRequested: { 'x': false, 'o': false },
+            lastUpdated: Date.now() // Add timestamp
+        };
+        
+        console.log("Initial game state created:", initialGameState);
+        console.log("Attempting to set data in Firebase...");
+        
+        // Set a timeout to detect if Firebase operation is hanging
+        let firebaseOperationCompleted = false;
+        const timeoutId = setTimeout(() => {
+            if (!firebaseOperationCompleted) {
+                console.error("Firebase operation timed out after 10 seconds");
+                alert("Connection to Firebase timed out. Check your internet connection and try again.");
+                connectionStatus.textContent = "Room creation timed out. Please try again.";
+            }
+        }, 10000);
+        
+        roomRef.set(initialGameState)
+            .then(() => {
+                firebaseOperationCompleted = true;
+                clearTimeout(timeoutId);
+                
+                console.log("Room created successfully in Firebase");
+                connectionStatus.textContent = "";
+                
+                // Test if we can read back the data
+                return roomRef.once('value');
+            })
+            .then((snapshot) => {
+                if (snapshot && snapshot.exists()) {
+                    console.log("Room data verification success:", snapshot.val());
+                    
+                    // Only proceed to next UI state if all checks pass
+                    roomCodeSpan.textContent = roomId;
+                    roomCreated.classList.remove('hidden');
+                    
+                    // Move from lobby to game screen when room is created successfully
+                    setTimeout(() => {
+                        onlineLobby.classList.add('hidden');
+                        onlineGame.classList.remove('hidden');
+                        
+                        // Update UI
+                        displayRoomCode.textContent = roomId;
+                        onlineTurnInfo.textContent = "Waiting for opponent...";
+                        
+                        // Create the board UI
+                        createOnlineGameBoard(gridSize);
+                    }, 1000);
+                    
+                    // Listen for opponent joining
+                    listenForOpponent();
+                    
+                    // Listen for game state changes
+                    listenForGameStateChanges();
+                } else {
+                    console.error("Room creation succeeded but data verification failed");
+                    alert("Room was created but could not be verified. Try again or check Firebase settings.");
+                    connectionStatus.textContent = "Room verification failed. Please try again.";
+                    
+                    // Clean up the room reference if it exists
+                    if (roomRef) {
+                        leaveRoom();
+                    }
+                }
+            })
+            .catch(error => {
+                firebaseOperationCompleted = true;
+                clearTimeout(timeoutId);
+                
+                console.error("Error creating room:", error);
+                alert("Error creating room: " + error.message);
+                connectionStatus.textContent = "Error creating room. Please try again.";
+                
+                // Clean up the room reference if it exists
+                if (roomRef) {
+                    leaveRoom();
+                }
+            });
+    } catch (error) {
+        console.error("Exception when creating room:", error);
+        alert("Error initializing room: " + error.message);
+        connectionStatus.textContent = "Room creation failed. Please try again.";
+    }
 }
 
 function joinRoom() {
@@ -259,27 +366,46 @@ function joinRoom() {
 }
 
 function listenForOpponent() {
+    if (!roomRef) {
+        console.error("No room reference available for listening");
+        return;
+    }
+
+    console.log("Starting to listen for opponent joining room:", roomId);
     const playersRef = roomRef.child('players');
     
+    // First, check the current state to handle page refreshes
+    playersRef.once('value')
+        .then(snapshot => {
+            const players = snapshot.val();
+            if (players && players.o) {
+                console.log("Opponent already in room on initial check");
+                waitingMessage.textContent = "Opponent already in room! Game starting...";
+                // Game UI should be handled in the createRoom function
+            }
+        })
+        .catch(err => {
+            console.error("Error checking initial player state:", err);
+        });
+    
+    // Then set up the ongoing listener
     playersRef.on('value', snapshot => {
         const players = snapshot.val();
         
         if (players && players.o) {
-            // Opponent joined, start the game
-            waitingMessage.textContent = "Opponent joined! Game starting...";
-            
-            // Hide lobby, show game after a short delay
-            setTimeout(() => {
-                onlineLobby.classList.add('hidden');
-                onlineGame.classList.remove('hidden');
-                
-                // Update UI
-                displayRoomCode.textContent = roomId;
-                
-                // Create the board UI
-                createOnlineGameBoard(gridSize);
-            }, 1000);
+            // Opponent joined, update the waiting message
+            console.log("Opponent joined!", players);
+            waitingMessage.textContent = "Opponent joined! Game is ready.";
+            onlineTurnInfo.textContent = "Your Turn";
+        } else if (players && !players.o) {
+            // Reset waiting message if opponent leaves
+            console.log("Waiting for opponent to join");
+            waitingMessage.textContent = "Waiting for opponent to join...";
+            onlineTurnInfo.textContent = "Waiting for opponent...";
         }
+    }, error => {
+        console.error("Error in players listener:", error);
+        connectionStatus.textContent = "Connection error: " + error.message;
     });
 }
 

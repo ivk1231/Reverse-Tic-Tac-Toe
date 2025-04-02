@@ -65,6 +65,15 @@
                 <button id="join-room-btn" class="btn">Join Room</button>
                 <p id="join-error" class="error hidden">Invalid room code. Please try again.</p>
             </div>
+            <div id="troubleshooting" class="info-box">
+                <h4>Having Connection Issues?</h4>
+                <ul>
+                    <li>Check your internet connection</li>
+                    <li>Make sure your firewall isn't blocking Firebase</li>
+                    <li>Try refreshing the page</li>
+                </ul>
+                <p><span id="firebase-status"></span></p>
+            </div>
             <button id="online-back" class="btn">Back to Menu</button>
         </div>
         
@@ -85,6 +94,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="firebase.js"></script>
+    <script src="debug.js"></script>
     <script src="script.js"></script>
 </body>
 </html> 

@@ -364,4 +364,31 @@ select {
     .board {
         width: min(100%, 210px); /* Reduced by 25% from 280px */
     }
+}
+
+.info-box {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 10px 15px;
+    margin: 15px 0;
+    font-size: 0.9em;
+}
+
+.info-box h4 {
+    margin-top: 0;
+    color: #0077cc;
+}
+
+.info-box ul {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.info-box li {
+    margin-bottom: 5px;
+}
+
+/* Update this in the Firebase.js file to display in the firebase-status element */
+#firebase-status {
+    font-weight: bold;
 } 

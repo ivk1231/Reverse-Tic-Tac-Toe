@@ -10,10 +10,105 @@ const firebaseConfig = {
   measurementId: "G-F17JF2EGJJ"
 };
 
+// Test if Firebase is working correctly
+function validateFirebaseConnection() {
+    if (!isFirebaseConnected()) {
+        console.error("Firebase is not initialized");
+        const firebaseStatus = document.getElementById("firebase-status");
+        if (firebaseStatus) {
+            firebaseStatus.textContent = "Firebase Status: Not initialized";
+            firebaseStatus.style.color = "red";
+        }
+        return;
+    }
+    
+    // Update status to testing
+    const firebaseStatus = document.getElementById("firebase-status");
+    if (firebaseStatus) {
+        firebaseStatus.textContent = "Firebase Status: Testing permissions...";
+        firebaseStatus.style.color = "orange";
+    }
+    
+    // Create a test entry to verify write permissions
+    const testRef = firebase.database().ref('_test_' + Date.now());
+    testRef.set({
+        timestamp: Date.now(),
+        test: true
+    })
+    .then(() => {
+        console.log("Firebase write permission confirmed");
+        if (firebaseStatus) {
+            firebaseStatus.textContent = "Firebase Status: Connected (read/write OK)";
+            firebaseStatus.style.color = "green";
+        }
+        // Remove the test data
+        return testRef.remove();
+    })
+    .then(() => {
+        console.log("Test entry removed successfully");
+    })
+    .catch(error => {
+        console.error("Firebase validation error:", error);
+        const connectionStatus = document.getElementById('connection-status');
+        if (connectionStatus) {
+            connectionStatus.textContent = "Firebase permission error: " + error.message;
+            connectionStatus.style.color = "red";
+        }
+        
+        if (firebaseStatus) {
+            firebaseStatus.textContent = "Firebase Status: Permission Error";
+            firebaseStatus.style.color = "red";
+        }
+    });
+}
+
 // Initialize Firebase
 try {
     firebase.initializeApp(firebaseConfig);
     console.log("Firebase initialized successfully");
+    
+    // Add connection status monitoring
+    const connectedRef = firebase.database().ref(".info/connected");
+    connectedRef.on("value", (snap) => {
+        if (snap.val() === true) {
+            console.log("Connected to Firebase");
+            const connectionStatus = document.getElementById("connection-status");
+            const firebaseStatus = document.getElementById("firebase-status");
+            
+            if (connectionStatus) {
+                connectionStatus.textContent = "Connected to Firebase";
+                connectionStatus.style.color = "green";
+                // Clear this message after 5 seconds
+                setTimeout(() => {
+                    if (connectionStatus.textContent === "Connected to Firebase") {
+                        connectionStatus.textContent = "";
+                    }
+                }, 5000);
+            }
+            
+            if (firebaseStatus) {
+                firebaseStatus.textContent = "Firebase Status: Connected";
+                firebaseStatus.style.color = "green";
+            }
+            
+            // Validate Firebase permissions
+            validateFirebaseConnection();
+        } else {
+            console.warn("Not connected to Firebase");
+            const connectionStatus = document.getElementById("connection-status");
+            const firebaseStatus = document.getElementById("firebase-status");
+            
+            if (connectionStatus) {
+                connectionStatus.textContent = "Not connected to Firebase - online play unavailable";
+                connectionStatus.style.color = "red";
+            }
+            
+            if (firebaseStatus) {
+                firebaseStatus.textContent = "Firebase Status: Disconnected";
+                firebaseStatus.style.color = "red";
+            }
+        }
+    });
 } catch (error) {
     console.error("Error initializing Firebase:", error);
     
@@ -21,6 +116,7 @@ try {
     const connectionStatus = document.getElementById('connection-status');
     if (connectionStatus) {
         connectionStatus.textContent = "Firebase connection error. Online mode may not work.";
+        connectionStatus.style.color = "red";
     }
 }
 
