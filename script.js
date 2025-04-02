@@ -216,10 +216,14 @@ function createRoom() {
         // Show "Creating room..." feedback
         connectionStatus.textContent = "Creating room...";
         
+        // Randomly determine which player goes first (x or o)
+        const firstPlayer = Math.random() < 0.5 ? 'x' : 'o';
+        console.log(`Random first player selected: ${firstPlayer}`);
+        
         const initialGameState = {
             gridSize: gridSize,
             board: Array(gridSize).fill().map(() => Array(gridSize).fill('')),
-            currentTurn: 'x',
+            currentTurn: firstPlayer, // Randomly assigned first player
             players: { 'x': true },
             gameActive: true,
             restartRequested: { 'x': false, 'o': false },
@@ -265,7 +269,31 @@ function createRoom() {
                         
                         // Update UI
                         displayRoomCode.textContent = roomId;
-                        onlineTurnInfo.textContent = "Your Turn (X)";
+                        
+                        // Update turn info based on who goes first
+                        if (snapshot.val().currentTurn === playerSymbol) {
+                            onlineTurnInfo.textContent = `Your Turn (${playerSymbol.toUpperCase()})`;
+                            onlineTurnInfo.style.color = 'var(--x-color)';
+                            // Show notification about random first player
+                            connectionStatus.textContent = "Coin toss: You go first!";
+                            connectionStatus.style.color = "green";
+                            setTimeout(() => {
+                                if (connectionStatus.textContent === "Coin toss: You go first!") {
+                                    connectionStatus.textContent = "";
+                                }
+                            }, 3000);
+                        } else {
+                            onlineTurnInfo.textContent = "Opponent's Turn";
+                            onlineTurnInfo.style.color = 'var(--text-color)';
+                            // Show notification about random first player
+                            connectionStatus.textContent = "Coin toss: Opponent goes first";
+                            connectionStatus.style.color = "orange";
+                            setTimeout(() => {
+                                if (connectionStatus.textContent === "Coin toss: Opponent goes first") {
+                                    connectionStatus.textContent = "";
+                                }
+                            }, 3000);
+                        }
                         
                         // Create the board UI
                         createOnlineGameBoard(gridSize);
@@ -364,9 +392,25 @@ function joinRoom() {
                     if (data.currentTurn === playerSymbol) {
                         onlineTurnInfo.textContent = `Your Turn (${playerSymbol.toUpperCase()})`;
                         onlineTurnInfo.style.color = 'var(--o-color)';
+                        // Show notification about random first player
+                        connectionStatus.textContent = "Coin toss: You go first!";
+                        connectionStatus.style.color = "green";
+                        setTimeout(() => {
+                            if (connectionStatus.textContent === "Coin toss: You go first!") {
+                                connectionStatus.textContent = "";
+                            }
+                        }, 3000);
                     } else {
                         onlineTurnInfo.textContent = "Opponent's Turn";
                         onlineTurnInfo.style.color = 'var(--text-color)';
+                        // Show notification about random first player
+                        connectionStatus.textContent = "Coin toss: Opponent goes first";
+                        connectionStatus.style.color = "orange";
+                        setTimeout(() => {
+                            if (connectionStatus.textContent === "Coin toss: Opponent goes first") {
+                                connectionStatus.textContent = "";
+                            }
+                        }, 3000);
                     }
                     
                     // Set up game board - IMPORTANT: Fix the roomRef assignment
@@ -499,15 +543,40 @@ function updateGameDataFromSnapshot(snapshot) {
     // Update the board UI
     updateOnlineGameBoard(data.board);
     
+    // Check if this is a fresh board after a restart (all cells empty)
+    const isFreshBoard = data.board.every(row => row.every(cell => cell === ''));
+    
     // Update turn info
     if (data.gameActive) {
         if (data.currentTurn === playerSymbol) {
             onlineTurnInfo.textContent = `Your Turn (${playerSymbol.toUpperCase()})`;
             // Add a visual indicator that it's your turn
             onlineTurnInfo.style.color = playerSymbol === 'x' ? 'var(--x-color)' : 'var(--o-color)';
+            
+            // Show notification about who goes first if this is a fresh board after restart
+            if (isFreshBoard && data.board.length > 0) {
+                connectionStatus.textContent = "Coin toss: You go first!";
+                connectionStatus.style.color = "green";
+                setTimeout(() => {
+                    if (connectionStatus.textContent === "Coin toss: You go first!") {
+                        connectionStatus.textContent = "";
+                    }
+                }, 3000);
+            }
         } else {
             onlineTurnInfo.textContent = `Opponent's Turn`;
             onlineTurnInfo.style.color = 'var(--text-color)';
+            
+            // Show notification about who goes first if this is a fresh board after restart
+            if (isFreshBoard && data.board.length > 0) {
+                connectionStatus.textContent = "Coin toss: Opponent goes first";
+                connectionStatus.style.color = "orange";
+                setTimeout(() => {
+                    if (connectionStatus.textContent === "Coin toss: Opponent goes first") {
+                        connectionStatus.textContent = "";
+                    }
+                }, 3000);
+            }
         }
     }
     
@@ -544,14 +613,19 @@ function updateGameDataFromSnapshot(snapshot) {
                 o: false
             });
             
+            // Randomly determine which player goes first for the new game
+            const newFirstPlayer = Math.random() < 0.5 ? 'x' : 'o';
+            console.log(`New game starting. Random first player selected: ${newFirstPlayer}`);
+            
             // Reset the game
             const freshBoard = Array(data.gridSize).fill().map(() => Array(data.gridSize).fill(''));
             roomRef.update({
                 board: freshBoard,
-                currentTurn: 'x',
+                currentTurn: newFirstPlayer, // Randomly selected first player
                 gameActive: true,
                 winner: null,
-                draw: false
+                draw: false,
+                lastUpdated: Date.now()
             });
             
             onlineRestartBtn.textContent = "Restart Game";
