@@ -1,4 +1,6 @@
 .DS_Store
 node_modules/
 .env
-*.log 
+*.log
+reverseticktak.md
+Hybrid PRD Architecture Document.txt 
