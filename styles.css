@@ -12,8 +12,9 @@ body {
     background-color: #f8f9fa;
     min-height: 100vh;
     display: flex;
-    justify-content: center;
-    align-items: center;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 2rem 0;
 }
 
 .container {
@@ -22,6 +23,7 @@ body {
     padding: 1rem;
     margin: 0 auto;
     text-align: center;
+    flex: 1;
 }
 
 h1 {
@@ -220,12 +222,12 @@ select {
 
 /* Footer */
 .footer {
-    margin-top: 2rem;
-    padding: 1rem 0;
+    width: 100%;
+    padding: 1rem;
     text-align: center;
     font-size: 0.9rem;
     color: #666;
-    border-top: 1px solid #eaeaea;
+    margin-top: 2rem;
 }
 
 .footer p {
@@ -234,6 +236,10 @@ select {
 
 /* Responsive adjustments */
 @media (max-width: 600px) {
+    body {
+        padding: 1rem 0;
+    }
+    
     h1 {
         font-size: 2rem;
     }
