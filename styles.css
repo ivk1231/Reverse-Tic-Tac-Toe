@@ -5,11 +5,29 @@
     box-sizing: border-box;
 }
 
+:root {
+    /* Dark mode colors */
+    --bg-color: #121212;
+    --text-color: #e0e0e0;
+    --heading-color: #f5f5f5;
+    --subtitle-color: #aaaaaa;
+    --primary-color: #2196f3;
+    --primary-dark: #1976d2;
+    --accent-color: #ff4081;
+    --cell-bg: #1e1e1e;
+    --cell-border: #2196f3;
+    --x-color: #ff4081;
+    --o-color: #2196f3;
+    --box-bg: #1e1e1e;
+    --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --how-to-play-bg: #1e1e1e;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     line-height: 1.6;
-    color: #333;
-    background-color: #f8f9fa;
+    color: var(--text-color);
+    background-color: var(--bg-color);
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -27,12 +45,12 @@ body {
 h1 {
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
-    color: #2c3e50;
+    color: var(--heading-color);
 }
 
 .subtitle {
     font-size: 1rem;
-    color: #666;
+    color: var(--subtitle-color);
     margin-bottom: 1.5rem;
     font-style: italic;
 }
@@ -40,19 +58,19 @@ h1 {
 h2 {
     font-size: 2rem;
     margin-bottom: 1rem;
-    color: #2c3e50;
+    color: var(--heading-color);
 }
 
 h3 {
     font-size: 1.5rem;
     margin: 1rem 0;
-    color: #3498db;
+    color: var(--primary-color);
 }
 
 h4 {
     font-size: 1.2rem;
     margin: 0.5rem 0;
-    color: #3498db;
+    color: var(--primary-color);
 }
 
 p {
@@ -72,7 +90,7 @@ ul {
 
 /* Buttons */
 .btn {
-    background-color: #3498db;
+    background-color: var(--primary-color);
     color: white;
     border: none;
     padding: 0.75rem 1.5rem;
@@ -85,7 +103,7 @@ ul {
 }
 
 .btn:hover {
-    background-color: #2980b9;
+    background-color: var(--primary-dark);
 }
 
 .button-container {
@@ -101,17 +119,20 @@ select {
     padding: 0.5rem;
     font-size: 1rem;
     border-radius: 4px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--primary-color);
     min-height: 48px;
+    background-color: var(--box-bg);
+    color: var(--text-color);
 }
 
 /* How to Play */
 .how-to-play {
     margin: 2rem 0;
     padding: 1rem;
-    background-color: #eaeaea;
+    background-color: var(--how-to-play-bg);
     border-radius: 8px;
     text-align: left;
+    box-shadow: var(--box-shadow);
 }
 
 /* Game Board */
@@ -120,7 +141,7 @@ select {
     gap: 0.5rem;
     margin: 1.5rem auto;
     max-width: 100%;
-    width: min(100%, 500px); /* More responsive board width */
+    width: min(100%, 375px); /* Reduced by 25% from 500px */
 }
 
 .board.size-4 {
@@ -134,13 +155,13 @@ select {
 }
 
 .cell {
-    background-color: white;
-    border: 2px solid #3498db;
+    background-color: var(--cell-bg);
+    border: 2px solid var(--cell-border);
     border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.5rem;
+    font-size: 2.2rem; /* Reduced from 2.5rem */
     font-weight: bold;
     cursor: pointer;
     /* Minimum size for touch targets */
@@ -150,21 +171,21 @@ select {
 }
 
 .cell:hover {
-    background-color: #f0f8ff;
+    background-color: #2a2a2a;
 }
 
 .cell.x {
-    color: #e74c3c;
-    font-size: 3rem;
+    color: var(--x-color);
+    font-size: 2.6rem; /* Reduced from 3rem */
 }
 
 .cell.o {
-    color: #3498db;
-    font-size: 3rem;
+    color: var(--o-color);
+    font-size: 2.6rem; /* Reduced from 3rem */
 }
 
 .cell.winning-cell {
-    background-color: #ffe6e6;
+    background-color: #330000;
 }
 
 /* Game Info */
@@ -197,32 +218,34 @@ select {
     max-width: 400px;
     margin: 1rem 0;
     padding: 1rem;
-    background-color: white;
+    background-color: var(--box-bg);
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: var(--box-shadow);
 }
 
 #room-code {
     font-weight: bold;
     letter-spacing: 2px;
     font-size: 1.5rem;
-    color: #2c3e50;
+    color: var(--primary-color);
 }
 
 #room-code-input {
     padding: 0.5rem;
     font-size: 1rem;
     width: 150px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--primary-color);
     border-radius: 4px;
     text-align: center;
     letter-spacing: 2px;
     margin-right: 0.5rem;
     min-height: 48px;
+    background-color: var(--box-bg);
+    color: var(--text-color);
 }
 
 .error {
-    color: #e74c3c;
+    color: var(--accent-color);
     margin: 0.5rem 0;
 }
 
@@ -232,7 +255,7 @@ select {
     padding: 1rem;
     text-align: center;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--subtitle-color);
     margin-top: 2rem;
 }
 
@@ -255,15 +278,15 @@ select {
     }
     
     .board {
-        width: min(100%, 400px);
+        width: min(100%, 300px); /* Reduced by 25% from 400px */
     }
     
     .cell {
-        font-size: 2rem;
+        font-size: 1.8rem; /* Reduced from 2rem */
     }
     
     .cell.x, .cell.o {
-        font-size: 2.5rem;
+        font-size: 2.2rem; /* Reduced from 2.5rem */
     }
     
     .button-container {
@@ -297,15 +320,15 @@ select {
     }
     
     .cell {
-        font-size: 2rem;
+        font-size: 1.8rem; /* Reduced from 2rem */
     }
     
     .cell.x, .cell.o {
-        font-size: 2.5rem;
+        font-size: 2rem; /* Reduced from 2.5rem */
     }
     
     .board {
-        width: min(100%, 320px);
+        width: min(100%, 240px); /* Reduced by 25% from 320px */
     }
     
     .button-container {
@@ -331,14 +354,14 @@ select {
     }
     
     .cell {
-        font-size: 1.7rem;
+        font-size: 1.5rem; /* Reduced from 1.7rem */
     }
     
     .cell.x, .cell.o {
-        font-size: 2.2rem;
+        font-size: 1.8rem; /* Reduced from 2.2rem */
     }
     
     .board {
-        width: min(100%, 280px);
+        width: min(100%, 210px); /* Reduced by 25% from 280px */
     }
 } 
