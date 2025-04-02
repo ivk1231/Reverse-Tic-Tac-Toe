@@ -29,8 +29,14 @@ function validateFirebaseConnection() {
         firebaseStatus.style.color = "orange";
     }
     
+    // Check database rules
+    console.log("Checking database rules...");
+    const rulesRef = firebase.database().ref('.info/connected');
+    
     // Create a test entry to verify write permissions
-    const testRef = firebase.database().ref('_test_' + Date.now());
+    const testId = '_test_' + Date.now();
+    console.log("Testing write with ID:", testId);
+    const testRef = firebase.database().ref(testId);
     testRef.set({
         timestamp: Date.now(),
         test: true

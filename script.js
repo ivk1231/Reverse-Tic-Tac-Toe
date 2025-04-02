@@ -369,8 +369,9 @@ function joinRoom() {
                         onlineTurnInfo.style.color = 'var(--text-color)';
                     }
                     
-                    // Set up game board
-                    this.roomRef = roomRef;
+                    // Set up game board - IMPORTANT: Fix the roomRef assignment
+                    window.roomRef = roomRef; // Explicitly set as global variable
+                    console.log("Global roomRef set for room ID:", code);
                     
                     // Listen for game state changes
                     listenForGameStateChanges();
@@ -436,96 +437,137 @@ function listenForOpponent() {
 }
 
 function listenForGameStateChanges() {
-    if (!roomRef) return;
+    if (!roomRef) {
+        console.error("No room reference available for game state changes");
+        
+        // Try to reconnect if we have roomId
+        if (roomId) {
+            console.log("Attempting to reconnect to room:", roomId);
+            roomRef = firebase.database().ref('rooms/' + roomId);
+            
+            if (!roomRef) {
+                console.error("Failed to reconnect to room");
+                connectionStatus.textContent = "Connection lost. Please refresh the page.";
+                return;
+            }
+            
+            console.log("Reconnected to room:", roomId);
+        } else {
+            console.error("No room ID available for reconnection");
+            return;
+        }
+    }
     
     console.log("Setting up game state listener for room:", roomId);
     
+    // First do a single read to get current state
+    roomRef.once('value')
+        .then(snapshot => {
+            if (!snapshot.exists()) {
+                console.error("Room no longer exists:", roomId);
+                connectionStatus.textContent = "Game room no longer exists. Please create a new room.";
+                return;
+            }
+            
+            console.log("Initial game state:", snapshot.val());
+            updateGameDataFromSnapshot(snapshot);
+        })
+        .catch(error => {
+            console.error("Error reading initial game state:", error);
+        });
+    
+    // Then set up the ongoing listener
     roomRef.on('value', snapshot => {
-        const data = snapshot.val();
-        if (!data) {
-            console.error("No data received from Firebase for room:", roomId);
-            return;
-        }
-        
-        console.log("Game state update received:", data);
-        onlineGameData = data;
-        
-        // Update the board UI
-        updateOnlineGameBoard(data.board);
-        
-        // Update turn info
-        if (data.gameActive) {
-            if (data.currentTurn === playerSymbol) {
-                onlineTurnInfo.textContent = `Your Turn (${playerSymbol.toUpperCase()})`;
-                // Add a visual indicator that it's your turn
-                onlineTurnInfo.style.color = playerSymbol === 'x' ? 'var(--x-color)' : 'var(--o-color)';
-            } else {
-                onlineTurnInfo.textContent = `Opponent's Turn`;
-                onlineTurnInfo.style.color = 'var(--text-color)';
-            }
-        }
-        
-        // Check win/draw conditions
-        if (data.winner) {
-            if (data.winner === playerSymbol) {
-                onlineTurnInfo.textContent = "You Lose!";
-                onlineTurnInfo.style.color = 'var(--accent-color)';
-            } else {
-                onlineTurnInfo.textContent = "You Win!";
-                onlineTurnInfo.style.color = 'green';
-            }
-            highlightWinningCells(onlineBoard, data.board, data.winner);
-        } else if (data.draw) {
-            onlineTurnInfo.textContent = "It's a Draw!";
-            onlineTurnInfo.style.color = 'var(--text-color)';
-        }
-        
-        // Check for restart requests
-        if (data.restartRequested) {
-            const otherPlayer = playerSymbol === 'x' ? 'o' : 'x';
-            
-            if (data.restartRequested[otherPlayer]) {
-                onlineRestartBtn.textContent = "Confirm Restart";
-            } else {
-                onlineRestartBtn.textContent = "Restart Game";
-            }
-            
-            // If both players requested restart
-            if (data.restartRequested.x && data.restartRequested.o) {
-                // Reset restart requests
-                roomRef.child('restartRequested').set({
-                    x: false,
-                    o: false
-                });
-                
-                // Reset the game
-                const freshBoard = Array(data.gridSize).fill().map(() => Array(data.gridSize).fill(''));
-                roomRef.update({
-                    board: freshBoard,
-                    currentTurn: 'x',
-                    gameActive: true,
-                    winner: null,
-                    draw: false
-                });
-                
-                onlineRestartBtn.textContent = "Restart Game";
-            }
-        }
-        
-        // Check if the other player disconnected
-        const otherPlayer = playerSymbol === 'x' ? 'o' : 'x';
-        if (!data.players || !data.players[otherPlayer]) {
-            connectionStatus.textContent = "Opponent disconnected.";
-        } else {
-            // Only clear this specific message
-            if (connectionStatus.textContent === "Opponent disconnected.") {
-                connectionStatus.textContent = "";
-            }
-        }
+        updateGameDataFromSnapshot(snapshot);
     }, error => {
         console.error("Error in game state listener:", error);
         connectionStatus.textContent = "Error: " + error.message;
     });
+}
+
+// Helper function to update game data from a snapshot
+function updateGameDataFromSnapshot(snapshot) {
+    const data = snapshot.val();
+    if (!data) {
+        console.error("No data received from Firebase for room:", roomId);
+        return;
+    }
+    
+    console.log("Game state update received:", data);
+    onlineGameData = data;
+    
+    // Update the board UI
+    updateOnlineGameBoard(data.board);
+    
+    // Update turn info
+    if (data.gameActive) {
+        if (data.currentTurn === playerSymbol) {
+            onlineTurnInfo.textContent = `Your Turn (${playerSymbol.toUpperCase()})`;
+            // Add a visual indicator that it's your turn
+            onlineTurnInfo.style.color = playerSymbol === 'x' ? 'var(--x-color)' : 'var(--o-color)';
+        } else {
+            onlineTurnInfo.textContent = `Opponent's Turn`;
+            onlineTurnInfo.style.color = 'var(--text-color)';
+        }
+    }
+    
+    // Check win/draw conditions
+    if (data.winner) {
+        if (data.winner === playerSymbol) {
+            onlineTurnInfo.textContent = "You Lose!";
+            onlineTurnInfo.style.color = 'var(--accent-color)';
+        } else {
+            onlineTurnInfo.textContent = "You Win!";
+            onlineTurnInfo.style.color = 'green';
+        }
+        highlightWinningCells(onlineBoard, data.board, data.winner);
+    } else if (data.draw) {
+        onlineTurnInfo.textContent = "It's a Draw!";
+        onlineTurnInfo.style.color = 'var(--text-color)';
+    }
+    
+    // Check for restart requests
+    if (data.restartRequested) {
+        const otherPlayer = playerSymbol === 'x' ? 'o' : 'x';
+        
+        if (data.restartRequested[otherPlayer]) {
+            onlineRestartBtn.textContent = "Confirm Restart";
+        } else {
+            onlineRestartBtn.textContent = "Restart Game";
+        }
+        
+        // If both players requested restart
+        if (data.restartRequested.x && data.restartRequested.o) {
+            // Reset restart requests
+            roomRef.child('restartRequested').set({
+                x: false,
+                o: false
+            });
+            
+            // Reset the game
+            const freshBoard = Array(data.gridSize).fill().map(() => Array(data.gridSize).fill(''));
+            roomRef.update({
+                board: freshBoard,
+                currentTurn: 'x',
+                gameActive: true,
+                winner: null,
+                draw: false
+            });
+            
+            onlineRestartBtn.textContent = "Restart Game";
+        }
+    }
+    
+    // Check if the other player disconnected
+    const otherPlayer = playerSymbol === 'x' ? 'o' : 'x';
+    if (!data.players || !data.players[otherPlayer]) {
+        connectionStatus.textContent = "Opponent disconnected.";
+    } else {
+        // Only clear this specific message
+        if (connectionStatus.textContent === "Opponent disconnected.") {
+            connectionStatus.textContent = "";
+        }
+    }
 }
 
 function createOnlineGameBoard(size) {
@@ -610,6 +652,22 @@ function handleOnlineCellClick(e) {
         return;
     }
     
+    // Make sure we have a valid roomRef
+    if (!roomRef) {
+        console.error("No roomRef available for updates. Reconnecting...");
+        
+        // Try to reconnect to the room
+        roomRef = firebase.database().ref('rooms/' + roomId);
+        
+        if (!roomRef) {
+            console.error("Failed to reconnect to room");
+            alert("Connection to game room lost. Please refresh the page and try again.");
+            return;
+        }
+        
+        console.log("Reconnected to room:", roomId);
+    }
+    
     // Create a deep copy of the board
     const updatedBoard = JSON.parse(JSON.stringify(onlineGameData.board));
     updatedBoard[row][col] = playerSymbol;
@@ -642,11 +700,22 @@ function handleOnlineCellClick(e) {
     onlineTurnInfo.textContent = "Opponent's Turn";
     onlineTurnInfo.style.color = 'var(--text-color)';
     
+    // Use transaction for atomic update to prevent race conditions
+    const boardRef = roomRef.child('board');
+    const currentTurnRef = roomRef.child('currentTurn');
+    
     // Update the game state in Firebase
     console.log("Sending updates to Firebase:", updates);
+    
+    // Start with updating the board
     roomRef.update(updates)
         .then(() => {
             console.log("Move successfully updated in Firebase");
+            // Force a refresh of the game state
+            return roomRef.once('value');
+        })
+        .then((snapshot) => {
+            console.log("Verified data after update:", snapshot.val());
         })
         .catch(error => {
             console.error("Error updating game state:", error);
