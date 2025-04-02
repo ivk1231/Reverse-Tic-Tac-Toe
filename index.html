@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Tic-Tac-Toe</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div id="landing-page">
+            <h1>Reverse Tic-Tac-Toe</h1>
+            <h3>Play for Free - No Account Needed!</h3>
+            
+            <div class="button-container">
+                <button id="play-offline-btn" class="btn">Play Offline</button>
+                <button id="play-online-btn" class="btn">Play Online</button>
+            </div>
+            
+            <div class="grid-selection">
+                <h4>Select Grid Size:</h4>
+                <select id="grid-size">
+                    <option value="4">4x4 Grid</option>
+                    <option value="5">5x5 Grid</option>
+                </select>
+            </div>
+            
+            <div class="how-to-play">
+                <h3>How to Play</h3>
+                <p>Reverse Tic-Tac-Toe is the opposite of regular Tic-Tac-Toe:</p>
+                <ul>
+                    <li>Take turns placing your symbol (X or O) on the grid</li>
+                    <li>Force your opponent to get three of their symbols in a row</li>
+                    <li>If you get three of your symbols in a row, you lose!</li>
+                    <li>Lines can be horizontal, vertical, or diagonal</li>
+                </ul>
+                <p><strong>Online Mode:</strong> Share your room code with a friend to play together for free!</p>
+            </div>
+        </div>
+        
+        <div id="offline-game" class="hidden">
+            <h2>Offline Mode</h2>
+            <div class="game-info">
+                <span id="offline-turn-info">Player X's Turn</span>
+            </div>
+            <div id="offline-board" class="board"></div>
+            <button id="offline-restart" class="btn">Restart Game</button>
+            <button id="offline-back" class="btn">Back to Menu</button>
+        </div>
+        
+        <div id="online-lobby" class="hidden">
+            <h2>Online Mode</h2>
+            <div id="create-room">
+                <h3>Create a Room</h3>
+                <button id="create-room-btn" class="btn">Create Room</button>
+                <div id="room-created" class="hidden">
+                    <p>Your Room Code: <span id="room-code">------</span></p>
+                    <button id="copy-invite" class="btn">Copy Invite</button>
+                    <p id="waiting-message">Waiting for opponent to join...</p>
+                </div>
+            </div>
+            <div id="join-room">
+                <h3>Join a Room</h3>
+                <input type="text" id="room-code-input" placeholder="Enter room code" maxlength="6">
+                <button id="join-room-btn" class="btn">Join Room</button>
+                <p id="join-error" class="error hidden">Invalid room code. Please try again.</p>
+            </div>
+            <button id="online-back" class="btn">Back to Menu</button>
+        </div>
+        
+        <div id="online-game" class="hidden">
+            <h2>Online Mode</h2>
+            <div class="game-info">
+                <span id="online-room-info">Room: <span id="display-room-code">------</span></span>
+                <span id="online-turn-info">Waiting for opponent...</span>
+                <span id="connection-status"></span>
+            </div>
+            <div id="online-board" class="board"></div>
+            <button id="online-restart" class="btn">Restart Game</button>
+            <button id="exit-room" class="btn">Exit Room</button>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="firebase.js"></script>
+    <script src="script.js"></script>
+</body>
+</html> 

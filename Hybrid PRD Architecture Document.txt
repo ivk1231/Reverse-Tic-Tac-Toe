@@ -1,0 +1,343 @@
+Hybrid PRD & Architecture Document
+Project: STL-27L 2D Object Reconstruction & Analysis System
+Platform: ROS2 Iron (with Cursor AI IDE)
+Sensor: STL-27L LiDAR (mounted sideways)
+
+1. Overview & Objectives
+Primary Objective:
+Develop a ROS2-based system that uses the STL-27L sensor to reconstruct a 2D outline of an object passing in front of it. The system will:
+
+Detect objects only when they are within a configurable proximity (default between 2.5 to 3.0 metres) so that reconstruction only begins when the object is close enough.
+Compensate for variable object speeds using timestamp-based motion estimation.
+Extract key features:
+Object orientation (using linear regression or PCA)
+A fixed point (e.g., the leading edge or a defined feature)
+The lowest point on the object's vertical profile (minimum y coordinate in our transformed frame)
+World Coordinate Definition:
+
+x axis: Object’s horizontal plane (derived from the sensor’s vertical data after transformation)
+y axis: Object’s vertical plane (derived from the sensor’s horizontal data)
+z axis: Range (distance from the sensor)
+Configurable Parameter:
+
+Proximity Trigger:
+Reconstruction (i.e., buffering slices and merging them) is only activated if an object is detected within a set distance threshold (default ~2.5–3.0 metres).
+This parameter is configurable via a ROS2 parameter server or configuration file, and the system will log or output status messages when it starts processing due to an object entering the defined range.
+2. Functional Requirements & Methods
+2.1 Data Acquisition & Preprocessing
+Data Reception:
+Method: Use a dedicated ROS2 node that listens to the UART port (921600 baud) and parses LiDAR packets using the defined structure (header 0x54, ver_len, speed, start/end angles, measurement points, timestamp, CRC).
+Data Integrity:
+Method: Validate each packet with a CRC8 algorithm using the provided lookup table.
+Coordinate Transformation:
+Method: Utilize ROS2’s tf2 to rotate the sensor’s native left-handed coordinate system (typically by ±90°) so that the sensor’s vertical becomes our world x axis and sensor’s horizontal becomes our world y axis.
+Distance conversion: Transform millimetre measurements into metres.
+Noise Filtering:
+Method: Apply a moving average or median filter to smooth raw measurements.
+2.2 Object Detection & Proximity Trigger
+Object Detection:
+Method: Continuously analyze consecutive scans for sudden changes in distance or intensity using threshold-based segmentation to determine object presence.
+Proximity Check (Configurable):
+Method:
+Monitor the distance measurements in each scan and check if the object is within a configurable threshold (e.g., 2.5–3.0 metres).
+The parameter (e.g., reconstruction_threshold_m) is adjustable via ROS2 parameters.
+Status Output: Log or publish a status message (e.g., “Reconstruction Activated: Object detected at 2.6m”) when the object is within the threshold and when it exits.
+Vertical Slice Sampling:
+Method: Once the object is detected and the proximity condition is met, buffer vertical slices of data along with corresponding timestamps for reconstruction.
+2.3 Variable Speed Compensation & 2D Reconstruction
+Variable Speed Compensation:
+Method:
+Use timestamps in the buffered slices to compute time differences between successive scans.
+Estimate object displacement based on known sensor speed and/or measured motion between slices.
+Apply linear interpolation or a Kalman filter to spatially align slices for a coherent reconstruction.
+2D Reconstruction:
+Method:
+Merge the vertical slices into a complete 2D point cloud using the calculated displacements.
+Use known object dimensions (if available) to constrain and scale the reconstruction.
+If gaps exist due to high speed, employ spline or grid-based interpolation.
+Orientation Analysis:
+Method: Apply linear regression (least-squares) or PCA on the reconstructed point cloud to determine the object's dominant orientation relative to the x axis.
+Feature Extraction:
+Fixed Point Extraction:
+Method: Define and extract a fixed point (e.g., the leading edge) from the point cloud, converting its coordinates from sensor to world frame.
+Lowest Point Extraction (y axis):
+Method: Iterate over the point cloud and find the point with the minimum y coordinate (post-transformation) to determine the lowest part of the object.
+2.4 Modular ROS2 Node Architecture & Status Reporting
+Node Overview:
+Lidar Sensor Node:
+Responsibilities: UART communication, packet parsing, CRC validation.
+Method: Use a serial library to read data and a custom parser for the STL-27L packet structure.
+Preprocessing Node:
+Responsibilities: Filtering, coordinate conversion, and transformation using tf2.
+Detection & Proximity Node:
+Responsibilities: Object detection, checking proximity threshold, and logging status.
+Method:
+Compare measured distances against the configurable threshold.
+Publish status messages (e.g., “Object Detected: Starting reconstruction” or “Object Out of Range: Halting reconstruction”).
+Reconstruction Node:
+Responsibilities: Assemble vertical slices into a 2D point cloud.
+Method:
+Use timestamp-based motion compensation.
+Employ interpolation or a Kalman filter as needed.
+Analysis Node:
+Responsibilities: Perform orientation analysis, extract fixed and lowest points.
+Method:
+Apply statistical techniques (regression/PCA).
+Iterate through point cloud for feature extraction.
+Visualization/Status Node (Optional):
+Responsibilities: Publish and visualize the point cloud and status updates to RViz or a dashboard.
+Method:
+Publish ROS2 topics with processed data and system status (e.g., proximity status, reconstruction state).
+3. Technical Architecture & Data Flow
+High-Level Architecture Diagram
+
++-------------------------+       +------------------------------+
+| Lidar Sensor Node       | ----> | Preprocessing Node            |
+| (UART, Packet Parsing)  |       | (Filtering, Conversion, tf2)  |
++-------------------------+       +--------------+---------------+
+                                              |
+                                              v
+                                +-------------------------------+
+                                | Detection & Proximity Node    |
+                                | (Object Detection, Threshold  |
+                                |  Check, Status Messaging)     |
+                                +--------------+---------------+
+                                              |
+                                              v
+                                +-------------------------------+
+                                | Reconstruction Node           |
+                                | (2D Point Cloud Assembly,     |
+                                |  Variable Speed Compensation) |
+                                +--------------+---------------+
+                                              |
+                                              v
+                                +-------------------------------+
+                                | Analysis Node                 |
+                                | (Orientation, Fixed Point,    |
+                                |  & Lowest Point Extraction)   |
+                                +--------------+---------------+
+                                              |
+                                              v
+                                +-------------------------------+
+                                | Visualization/Status Node     |
+                                | (RViz, Debug Messages)        |
+                                +-------------------------------+
+Data Flow Explanation:
+Data Acquisition:
+The Lidar Sensor Node captures raw LiDAR packets, validates them with CRC, and sends parsed data to the Preprocessing Node.
+Preprocessing:
+Data is filtered, converted (mm to m), and transformed to the world coordinate system via tf2.
+Detection & Proximity Check:
+The Detection Node monitors scans, checks if an object is within the configurable proximity threshold, and logs status messages.
+Only when an object is within range does the system trigger vertical slice sampling.
+Reconstruction:
+The Reconstruction Node uses buffered slices and timestamps to compensate for variable speeds and merge slices into a coherent 2D point cloud.
+Analysis:
+The Analysis Node applies regression/PCA to determine object orientation.
+It also extracts the fixed point and the lowest point (minimum y) from the point cloud.
+Visualization & Status Reporting:
+A dedicated node publishes the reconstruction state, visualization data, and status updates (e.g., reconstruction start/stop) to aid debugging and real-time monitoring.
+4. Development Considerations
+Configurable Parameters:
+The proximity threshold (e.g., reconstruction_threshold_m) must be configurable via ROS2 parameters, allowing adjustments in the 2.5–3.0 metre range.
+Additional configuration parameters (filtering parameters, interpolation methods, etc.) should be accessible via parameter files or dynamic reconfigure.
+Performance:
+Real-time processing at 10 Hz requires optimized nodes (using libraries such as Eigen for matrix operations and efficient multi-threading if needed).
+Testing & Simulation:
+Simulate sensor data to test each module independently, particularly the detection threshold and variable speed compensation.
+Use unit tests and integration tests to ensure data integrity and real-time performance.
+Status & Debugging:
+Implement clear logging and topic publishing to indicate when the system starts/stops reconstruction.
+Leverage RViz or a custom dashboard to visualize point clouds and extracted features.
+5. Next Steps & Milestones
+Finalize and Review PRD/Architecture:
+Confirm requirements and methods with stakeholders.
+Prototype Core Modules:
+Develop the Lidar Sensor Node and Preprocessing Node.
+Implement Detection & Proximity Logic:
+Create the Detection Node with configurable proximity threshold and status outputs.
+Build Reconstruction & Analysis Modules:
+Integrate timestamp-based motion compensation, merge vertical slices, and implement orientation and feature extraction algorithms.
+Integration Testing & Visualization:
+Test full data flow with simulated LiDAR inputs.
+Integrate status reporting and visualization using RViz.
+Optimization & Deployment:
+Profile performance, optimize as needed, and deploy on hardware.
+6. Summary
+This hybrid PRD and architecture document outlines a modular, method-driven approach for building a ROS2-based STL-27L 2D object reconstruction system using Cursor AI IDE. Key points include:
+
+Configurable Proximity Trigger: Only reconstruct objects within a set threshold (2.5–3.0 m), with clear status outputs.
+Variable Speed Compensation: Leverage timestamps and interpolation (or a Kalman filter) for accurate slice registration.
+Feature Extraction: Determine object orientation, fixed point, and lowest point (minimum y) using linear regression/PCA and point cloud analysis.
+Modular ROS2 Nodes: Separate nodes for sensor data acquisition, preprocessing, detection, reconstruction, analysis, and visualization ensure ease of testing and integration.
+
+
+
+live data format :- 
+
+
+DATA PROTOCOL 
+ 3.1. Data packet format  
+The STL-27L adopts one-way communication. After stable operation, it starts to 
+send measurement data packets without sending any commands. The measurement 
+packet format is shown in the figure below. 
+  
+Header VerLen Speed Start angle Data End angle Timestamp CRC check 
+ 
+54H 
+ 
+1 Byte 
+ 
+LSB 
+ 
+MSB 
+ 
+LSB 
+ 
+MSB 
+ 
+...... 
+ 
+LSB 
+ 
+MSB 
+ 
+LSB 
+ 
+MSB 
+ 
+1 Byte 
+ 
+ 
+ Header：The length is 1 Byte, and the value is fixed at 0x54, indicating the 
+beginning of the data packet; 
+ VerLen：The length is 1 Byte, the upper three bits indicate the packet type, 
+which is currently fixed at 1, and the lower five bits indicate the number of 
+measurement points in a packet, which is currently fixed at 12, so the byte 
+value is fixed at 0x2C; 
+ Speed：The  length  is  2 Byte,  the  unit  is degrees per  second, indicating  the 
+speed of the lidar; 
+ Start  angle:  The  length  is  2  Bytes,  and  the  unit  is  0.01  degrees,  indicating 
+the starting angle of the data packet point; 
+ Data：Indicates measurement data, a measurement data length is 3 bytes, 
+please refer to the next section for detailed analysis; 
+ End angle：The length is 2 Bytes, and the unit is 0.01 degrees, indicating the 
+end angle of the data packet point; 
+ Timestamp：The length is 2 Bytes, the unit is milliseconds, and the 
+maximum  is  30000.  When  it  reaches  30000,  it  will  be  counted  again, 
+indicating the timestamp value of the data packet; 
+  
+#define POINT_PER_PACK 12  
+#define HEADER 0x54 
+ 
+typedef struct   attribute  ((packed)) 
+{ uint16_t distance; 
+uint8_t intensity; 
+ 
+} LidarPointStructDef; 
+ 
+typedef struct     attribute    ((packed)) { 
+uint8_t header; 
+uint8_t ver_len; 
+uint16_t speed; 
+uint16_t start_angle; 
+LidarPointStructDef point[POINT_PER_PACK]; 
+uint16_t end_angle; 
+uint16_t timestamp; 
+uint8_t crc8; 
+}LiDARFrameTypeDef; 
+static const uint8_t CrcTable[256] 
+={ 0x00, 0x4d, 0x9a, 0xd7, 0x79, 0x34, 
+0xe3, 
+0xae, 0xf2, 0xbf, 0x68, 0x25, 0x8b, 0xc6, 0x11, 0x5c, 0xa9, 0xe4, 0x33, 
+0x7e, 0xd0, 0x9d, 0x4a, 0x07, 0x5b, 0x16, 0xc1, 0x8c, 0x22, 0x6f, 0xb8, 
+0xf5, 0x1f, 0x52, 0x85, 0xc8, 0x66, 0x2b, 0xfc, 0xb1, 0xed, 0xa0, 0x77, 
+0x3a, 0x94, 0xd9, 0x0e, 0x43, 0xb6, 0xfb, 0x2c, 0x61, 0xcf, 0x82, 0x55, 
+0x18, 0x44, 0x09, 0xde, 0x93, 0x3d, 0x70, 0xa7, 0xea, 0x3e, 0x73, 0xa4, 
+ CRC  check：The  length  is  1  Byte,  obtained  from  the  verification  of  all  the 
+previous data except itself. For the CRC verification method, see the 
+following content for details; The data structure reference is as follows:  
+The CRC check calculation method is as follows:  
+   
+0xe9, 0x47, 0x0a, 0xdd, 0x90, 0xcc, 0x81, 0x56, 0x1b, 0xb5, 0xf8, 0x2f, 
+0x62, 0x97, 0xda, 0x0d, 0x40, 0xee, 0xa3, 0x74, 0x39, 0x65, 0x28, 0xff, 
+0xb2, 0x1c, 0x51, 0x86, 0xcb, 0x21, 0x6c, 0xbb, 0xf6, 0x58, 0x15, 0xc2, 
+0x8f, 0xd3, 0x9e, 0x49, 0x04, 0xaa, 0xe7, 0x30, 0x7d, 0x88, 0xc5, 0x12, 
+0x5f, 0xf1, 0xbc, 0x6b, 0x26, 0x7a, 0x37, 0xe0, 0xad, 0x03, 0x4e, 0x99, 
+0xd4, 0x7c, 0x31, 0xe6, 0xab, 0x05, 0x48, 0x9f, 0xd2, 0x8e, 0xc3, 0x14, 
+0x59, 0xf7, 0xba, 0x6d, 0x20, 0xd5, 0x98, 0x4f, 0x02, 0xac, 0xe1, 0x36, 
+0x7b, 0x27, 0x6a, 0xbd, 0xf0, 0x5e, 0x13, 0xc4, 0x89, 0x63, 0x2e, 0xf9, 
+0xb4, 0x1a, 0x57, 0x80, 0xcd, 0x91, 0xdc, 0x0b, 0x46, 0xe8, 0xa5, 0x72, 
+0x3f, 0xca, 0x87, 0x50, 0x1d, 0xb3, 0xfe, 0x29, 0x64, 0x38, 0x75, 0xa2, 
+0xef, 0x41, 0x0c, 0xdb, 0x96, 0x42, 0x0f, 0xd8, 0x95, 0x3b, 0x76, 0xa1, 
+0xec, 0xb0, 0xfd, 0x2a, 0x67, 0xc9, 0x84, 0x53, 0x1e, 0xeb, 0xa6, 0x71, 
+0x3c, 0x92, 0xdf, 0x08, 0x45, 0x19, 0x54, 0x83, 0xce, 0x60, 0x2d, 0xfa, 
+0xb7, 0x5d, 0x10, 0xc7, 0x8a, 0x24, 0x69, 0xbe, 0xf3, 0xaf, 0xe2, 0x35, 
+0x78, 0xd6, 0x9b, 0x4c, 0x01, 0xf4, 0xb9, 0x6e, 0x23, 0x8d, 0xc0, 0x17, 
+0x5a, 0x06, 0x4b, 0x9c, 0xd1, 0x7f, 0x32, 0xe5, 0xa8 
+}; 
+ 
+uint8_t CalCRC8(uint8_t *p, uint8_t 
+len){ uint8_t crc = 0; 
+uint16_t i;  
+for (i = 0; i < len; i++){ 
+ 
+crc = CrcTable[(crc ^ *p++) & 0xff]; 
+ 
+} 
+ 
+return crc; 
+ 
+} 
+  
+step = (end_angle – start_angle)/(len – 1); 
+angle = start_angle + step*i; 
+where len is the number of measurement points in a data packet, and the value range of i is [0, 
+ 
+len). 
+ 
+3.2. Measurement data analysis  
+Each measurement data point consists of a 2-byte distance value and a 1-byte 
+confidence value, as shown in the figure below. 
+  
+Header VerLen Speed Start angle Data End angle Timestamp CRC check 
+54H 2CH LSB MSB LSB MSB ...... LSB MSB LSB MSB 1Byte  
+ 
+Measuring point 1 Measuring point 2 ... Measuring point n 
+distance intensity distance intensity  distance intensity 
+LSB MSB 1 Byte LSB MSB 1 Byte ... LSB MSB 1 Byte 
+The  unit  of  distance  value  is  mm.  The  signal  intensity  value  reflects  the  light 
+reflection intensity. The higher the intensity, the larger the signal intensity value; the 
+lower the intensity, the smaller the signal intensity value. The angle value of each point is obtained by linear interpolation of the starting 
+angle and the ending angle. The angle calculation method is as follows: 
+ 
+  
+ 
+3.3. Example  
+Suppose we receive a piece of data as shown below. 54 2C 68 08 AB 7E E0 00 E4 DC 00 E2 D9 00 E5 D5 00 E3 D3 00 E4 D0 00 E9 CD 00 E4 CA 00 E2 C7 00 E9 C5 00 E5 C2 00 E5 C0 00 E5 BE 82 3A 1A 50  
+ 
+We analyze it as follows:  
+Header VerLen Speed Start angle Data End angle Timestamp CRC check 
+54H 2CH 68H 08H ABH 7EH ...... BEH 82H 3AH 1AH 50H  
+  
+Measuring point 1 Measuring point 2 ... Measuring point 12 
+distance intensity distance intensity  distance intensity 
+E0H 00H E4H DCH 00H E2H ... B0H 00H EAH 
+   
+Field information Parsing process 
+Speed 0868H = 2152 degrees per second; 
+Start angle 7EABH = 32427, or 324.27 degrees; 
+End angle 82BEH = 33470, or 334.7 degrees; 
+Measuring point 1 distance 00E0H = 224mm 
+Measuring point 1 intensity E4H = 228 
+Measuring point 2 distance 00DCH = 200mm 
+Measuring point 2 intensity 00E2H = 226 
+... ... 
+Measuring point 12 distance 00B0H = 176mm 
+Measuring point 12 intensity EAH = 234 
+  
+ 
+4. COORDINATE  SYSTEM 
+ The  STL-27L  uses  a  left-handed  coordinate  system,  the  rotation  center  is  the 
+coordinate origin, the front of the sensor is defined as the zero-degree direction, and 
+the rotation angle increases clockwise
