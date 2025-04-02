@@ -218,6 +218,20 @@ select {
     margin: 0.5rem 0;
 }
 
+/* Footer */
+.footer {
+    margin-top: 2rem;
+    padding: 1rem 0;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #666;
+    border-top: 1px solid #eaeaea;
+}
+
+.footer p {
+    margin: 0;
+}
+
 /* Responsive adjustments */
 @media (max-width: 600px) {
     h1 {
