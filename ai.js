@@ -69,7 +69,15 @@ function sortMovesByPotential(board, moves, aiSymbol, humanSymbol) {
     const center = Math.floor(board.length / 2);
     
     return moves.sort((a, b) => {
-        // First, check if either move blocks a border threat
+        // First, check if either move would create our own three-in-a-row
+        const selfThreatA = wouldCreateThreeInRow(board, a[0], a[1], aiSymbol);
+        const selfThreatB = wouldCreateThreeInRow(board, b[0], b[1], aiSymbol);
+        
+        // Heavily penalize moves that create our own three-in-a-row
+        if (selfThreatA && !selfThreatB) return 1;
+        if (!selfThreatA && selfThreatB) return -1;
+        
+        // Then check for border threats
         const blocksBorderThreatA = blocksBorderThreat(board, a[0], a[1], humanSymbol);
         const blocksBorderThreatB = blocksBorderThreat(board, b[0], b[1], humanSymbol);
         
@@ -316,8 +324,8 @@ function evaluateLine(line, symbol) {
             return index === 0 || index === line.length - 1;
         });
         
-        // Double the threat weight for border lines
-        return isBorderLine ? -10 : -5;
+        // Increase penalties significantly
+        return isBorderLine ? -20 : -15;
     }
     
     // One symbol with two empty spaces - potential future line
@@ -328,8 +336,8 @@ function evaluateLine(line, symbol) {
             return index === 0 || index === line.length - 1;
         });
         
-        // Double the potential weight for border lines
-        return isBorderLine ? -2 : -1;
+        // Increase penalties for border lines
+        return isBorderLine ? -4 : -2;
     }
     
     return 0;
@@ -484,6 +492,20 @@ function isBorderThreat(line, symbol) {
     }
     
     return false;
+}
+
+// New function to check if a move would create our own three-in-a-row
+function wouldCreateThreeInRow(board, row, col, symbol) {
+    // Try the move
+    board[row][col] = symbol;
+    
+    // Check if this creates three in a row
+    const creates = checkWin(board, symbol, 3);
+    
+    // Undo the move
+    board[row][col] = '';
+    
+    return creates;
 }
 
 // Export the AI move function for use in script.js
