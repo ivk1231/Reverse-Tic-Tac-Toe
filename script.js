@@ -31,15 +31,23 @@ const connectionStatus = document.getElementById('connection-status');
 const onlineRestartBtn = document.getElementById('online-restart');
 const exitRoomBtn = document.getElementById('exit-room');
 
+// AI mode elements
+const symbolSelection = document.getElementById('symbolSelection');
+const playerSymbolSelect = document.getElementById('playerSymbol');
+const modeRadios = document.querySelectorAll('input[name="offlineMode"]');
+
 // Game state variables
 let gridSize = 4; // Default grid size
 let offlineGameBoard = [];
 let currentPlayer = 'x';
 let gameActive = false;
 let onlineGameData = null;
-let playerSymbol = '';
+let playerSymbol = 'x'; // Default player symbol
+let aiSymbol = 'o';     // Default AI symbol
+let gameMode = 'twoPlayers'; // Default game mode
 let roomId = '';
 let roomRef = null;
+let aiThinking = false; // Flag to prevent clicks during AI turn
 
 // Check if Firebase is initialized and connected
 function isFirebaseConnected() {
@@ -64,6 +72,31 @@ function init() {
     gridSizeSelect.addEventListener('change', function() {
         gridSize = parseInt(gridSizeSelect.value);
     });
+    
+    // Set up mode selection and symbol selection
+    modeRadios.forEach(radio => {
+        radio.addEventListener('change', handleModeChange);
+    });
+    
+    playerSymbolSelect.addEventListener('change', function() {
+        playerSymbol = playerSymbolSelect.value;
+        aiSymbol = playerSymbol === 'x' ? 'o' : 'x';
+    });
+}
+
+// Handle game mode change
+function handleModeChange() {
+    gameMode = document.querySelector('input[name="offlineMode"]:checked').value;
+    
+    if (gameMode === 'ai') {
+        // Enable the symbol selection
+        symbolSelection.classList.remove('disabled');
+        playerSymbolSelect.disabled = false;
+    } else {
+        // Disable the symbol selection
+        symbolSelection.classList.add('disabled');
+        playerSymbolSelect.disabled = true;
+    }
 }
 
 // Navigation functions
@@ -92,6 +125,14 @@ function startOfflineGame() {
     landingPage.classList.add('hidden');
     offlineGame.classList.remove('hidden');
     
+    // Get the game mode and player symbol
+    gameMode = document.querySelector('input[name="offlineMode"]:checked').value;
+    
+    if (gameMode === 'ai') {
+        playerSymbol = playerSymbolSelect.value;
+        aiSymbol = playerSymbol === 'x' ? 'o' : 'x';
+    }
+    
     // Set up the game board
     gridSize = parseInt(gridSizeSelect.value);
     createOfflineGameBoard();
@@ -100,6 +141,11 @@ function startOfflineGame() {
     currentPlayer = 'x';
     gameActive = true;
     updateOfflineTurnInfo();
+    
+    // If AI goes first (AI is X), make the first move
+    if (gameMode === 'ai' && aiSymbol === 'x') {
+        makeAIMove();
+    }
 }
 
 function createOfflineGameBoard() {
@@ -126,13 +172,16 @@ function createOfflineGameBoard() {
 }
 
 function handleOfflineCellClick(e) {
-    if (!gameActive) return;
+    if (!gameActive || aiThinking) return;
     
     const row = parseInt(e.target.dataset.row);
     const col = parseInt(e.target.dataset.col);
     
     // Check if the cell is already filled
     if (offlineGameBoard[row][col] !== '') return;
+    
+    // Check if it's AI mode and not the player's turn
+    if (gameMode === 'ai' && currentPlayer !== playerSymbol) return;
     
     // Update the board array and UI
     offlineGameBoard[row][col] = currentPlayer;
@@ -157,17 +206,86 @@ function handleOfflineCellClick(e) {
     // Switch player
     currentPlayer = currentPlayer === 'x' ? 'o' : 'x';
     updateOfflineTurnInfo();
+    
+    // If it's AI mode and AI's turn, make the AI move
+    if (gameMode === 'ai' && currentPlayer === aiSymbol && gameActive) {
+        makeAIMove();
+    }
+}
+
+function makeAIMove() {
+    // Show AI thinking
+    aiThinking = true;
+    offlineTurnInfo.textContent = "AI is thinking...";
+    
+    // Add a slight delay to show "AI is thinking"
+    setTimeout(() => {
+        if (!gameActive) {
+            aiThinking = false;
+            return;
+        }
+        
+        // Get the AI move
+        const [row, col] = aiMove(offlineGameBoard, playerSymbol, aiSymbol);
+        
+        // Get the cell at the AI move coordinates
+        const cells = offlineBoard.querySelectorAll('.cell');
+        const cellIndex = row * gridSize + col;
+        const cell = cells[cellIndex];
+        
+        // Update the board array and UI
+        offlineGameBoard[row][col] = aiSymbol;
+        cell.textContent = aiSymbol.toUpperCase();
+        cell.classList.add(aiSymbol);
+        
+        // Check for a winner (in Reverse Tic-Tac-Toe, three in a row loses)
+        if (checkWin(offlineGameBoard, aiSymbol, 3)) {
+            gameActive = false;
+            offlineTurnInfo.textContent = `AI Loses!`;
+            highlightWinningCells(offlineBoard, offlineGameBoard, aiSymbol);
+            aiThinking = false;
+            return;
+        }
+        
+        // Check for a draw
+        if (checkDraw(offlineGameBoard)) {
+            gameActive = false;
+            offlineTurnInfo.textContent = "It's a Draw!";
+            aiThinking = false;
+            return;
+        }
+        
+        // Switch to player's turn
+        currentPlayer = playerSymbol;
+        updateOfflineTurnInfo();
+        aiThinking = false;
+    }, 500); // Add a 500ms delay for "AI thinking" effect
 }
 
 function updateOfflineTurnInfo() {
-    offlineTurnInfo.textContent = `Player ${currentPlayer.toUpperCase()}'s Turn`;
+    if (gameMode === 'ai') {
+        if (currentPlayer === playerSymbol) {
+            offlineTurnInfo.textContent = "Your Turn";
+        } else {
+            offlineTurnInfo.textContent = "AI's Turn";
+        }
+    } else {
+        offlineTurnInfo.textContent = `Player ${currentPlayer.toUpperCase()}'s Turn`;
+    }
 }
 
 function restartOfflineGame() {
     createOfflineGameBoard();
     currentPlayer = 'x';
     gameActive = true;
-    updateOfflineTurnInfo();
+    
+    // If AI mode and AI goes first, make AI move
+    if (gameMode === 'ai' && aiSymbol === 'x') {
+        updateOfflineTurnInfo();
+        makeAIMove();
+    } else {
+        updateOfflineTurnInfo();
+    }
 }
 
 // Online Game Functions

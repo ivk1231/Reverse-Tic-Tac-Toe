@@ -391,4 +391,78 @@ select {
 /* Update this in the Firebase.js file to display in the firebase-status element */
 #firebase-status {
     font-weight: bold;
+}
+
+/* Game Options */
+.game-options {
+    margin: 1rem 0;
+    padding: 1rem;
+    background-color: var(--how-to-play-bg);
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0.5rem 0;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    margin: 0.5rem 0;
+    cursor: pointer;
+    min-height: 48px;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    width: 100%;
+}
+
+.radio-label:hover {
+    background-color: rgba(33, 150, 243, 0.1);
+}
+
+.radio-label input[type="radio"] {
+    margin-right: 0.5rem;
+    min-width: 20px;
+    min-height: 20px;
+}
+
+.symbol-selection {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    transition: opacity 0.3s;
+}
+
+.symbol-selection.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.symbol-selection select {
+    width: 100%;
+    max-width: 200px;
+}
+
+/* Media Queries for Responsive Design */
+@media (min-width: 768px) {
+    .radio-group {
+        flex-direction: row;
+        justify-content: center;
+    }
+    
+    .radio-label {
+        margin: 0 1rem;
+        width: auto;
+    }
+}
+
+@media (max-width: 320px) {
+    .radio-label {
+        font-size: 0.9rem;
+    }
 } 
