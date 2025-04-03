@@ -141,9 +141,8 @@ function startOfflineGame() {
         playerSymbol = playerSymbolSelect.value;
         aiSymbol = playerSymbol === 'x' ? 'o' : 'x';
         
-        // Randomly determine who goes first in AI mode
-        const randomFirstPlayer = Math.random() < 0.5 ? 'x' : 'o';
-        currentPlayer = randomFirstPlayer;
+        // Player goes first if they chose X, AI goes first if player chose O
+        currentPlayer = playerSymbol;
         
         // Update turn info based on who goes first
         if (currentPlayer === playerSymbol) {
@@ -315,9 +314,8 @@ function restartOfflineGame() {
     gameActive = true;
     
     if (gameMode === 'ai') {
-        // Randomly determine who goes first in AI mode
-        const randomFirstPlayer = Math.random() < 0.5 ? 'x' : 'o';
-        currentPlayer = randomFirstPlayer;
+        // Player goes first if they chose X, AI goes first if player chose O
+        currentPlayer = playerSymbol;
         
         // Update turn info based on who goes first
         if (currentPlayer === playerSymbol) {
