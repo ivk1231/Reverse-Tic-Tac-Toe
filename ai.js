@@ -183,7 +183,7 @@ function minimax(board, depth, isMaximizing, humanSymbol, aiSymbol, maxDepth, al
     }
     
     if (checkWin(board, aiSymbol, 3)) {
-        const score = -1; // AI lost (3 in a row) -> bad for AI
+        const score = -Infinity; // AI lost (3 in a row) -> worst possible outcome
         evaluationCache.set(cacheKey, score);
         return score;
     }
@@ -205,6 +205,11 @@ function minimax(board, depth, isMaximizing, humanSymbol, aiSymbol, maxDepth, al
         const sortedMoves = sortMovesByPotential(board, emptyCells, aiSymbol, humanSymbol);
         
         for (const [row, col] of sortedMoves) {
+            // First, check if this move would create our own three-in-a-row
+            if (wouldCreateThreeInRow(board, row, col, aiSymbol)) {
+                continue; // Skip this move entirely
+            }
+            
             // Make move
             board[row][col] = aiSymbol;
             
@@ -220,6 +225,11 @@ function minimax(board, depth, isMaximizing, humanSymbol, aiSymbol, maxDepth, al
             // Alpha-beta pruning
             alpha = Math.max(alpha, bestScore);
             if (beta <= alpha) break; // Beta cutoff
+        }
+        
+        // If all moves were skipped (all lead to self-loss), return worst possible score
+        if (bestScore === -Infinity) {
+            bestScore = -1000; // Very bad but not as bad as immediate loss
         }
         
         evaluationCache.set(cacheKey, bestScore);
@@ -313,19 +323,9 @@ function evaluateLine(line, symbol) {
     const symbolCount = line.filter(cell => cell === symbol).length;
     const emptyCount = line.filter(cell => cell === '').length;
     
-    // In reverse tic-tac-toe, we want to avoid making lines of our own symbol
-    // and force the opponent to make lines of their symbol
-    
-    // Two symbols with an empty space - dangerous and should be avoided
+    // Two symbols with an empty space - extremely dangerous
     if (symbolCount === 2 && emptyCount === 1) {
-        // Check if this is a border line (contains cells at row 0, last row, col 0, or last col)
-        const isBorderLine = line.some(cell => {
-            const index = line.indexOf(cell);
-            return index === 0 || index === line.length - 1;
-        });
-        
-        // Increase penalties significantly
-        return isBorderLine ? -20 : -15;
+        return -Infinity; // Never allow moves that could complete our own three-in-a-row
     }
     
     // One symbol with two empty spaces - potential future line
@@ -337,7 +337,7 @@ function evaluateLine(line, symbol) {
         });
         
         // Increase penalties for border lines
-        return isBorderLine ? -4 : -2;
+        return isBorderLine ? -8 : -4;
     }
     
     return 0;
