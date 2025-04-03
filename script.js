@@ -140,6 +140,21 @@ function startOfflineGame() {
     if (gameMode === 'ai') {
         playerSymbol = playerSymbolSelect.value;
         aiSymbol = playerSymbol === 'x' ? 'o' : 'x';
+        
+        // Randomly determine who goes first in AI mode
+        const randomFirstPlayer = Math.random() < 0.5 ? 'x' : 'o';
+        currentPlayer = randomFirstPlayer;
+        
+        // Update turn info based on who goes first
+        if (currentPlayer === playerSymbol) {
+            offlineTurnInfo.textContent = "Your Turn";
+        } else {
+            offlineTurnInfo.textContent = "AI's Turn";
+        }
+    } else {
+        // For two-player mode, X always goes first
+        currentPlayer = 'x';
+        offlineTurnInfo.textContent = "Player 1's Turn (X)";
     }
     
     // Set up the game board
@@ -147,7 +162,6 @@ function startOfflineGame() {
     createOfflineGameBoard();
     
     // Initialize game state
-    currentPlayer = 'x';
     gameActive = true;
     xUndoAvailable = false; // No undo available
     oUndoAvailable = false; // No undo available
@@ -155,11 +169,8 @@ function startOfflineGame() {
     undoMode = false;
     undoSourceCell = null;
     
-    // Update UI
-    updateOfflineTurnInfo();
-    
-    // If AI goes first (AI is X), make the first move
-    if (gameMode === 'ai' && aiSymbol === 'x') {
+    // If AI goes first, make the first move
+    if (gameMode === 'ai' && currentPlayer === aiSymbol) {
         makeAIMove();
     }
 }
@@ -301,15 +312,28 @@ function updateOfflineTurnInfo() {
 
 function restartOfflineGame() {
     createOfflineGameBoard();
-    currentPlayer = 'x';
     gameActive = true;
     
-    // If AI mode and AI goes first, make AI move
-    if (gameMode === 'ai' && aiSymbol === 'x') {
-        updateOfflineTurnInfo();
-        makeAIMove();
+    if (gameMode === 'ai') {
+        // Randomly determine who goes first in AI mode
+        const randomFirstPlayer = Math.random() < 0.5 ? 'x' : 'o';
+        currentPlayer = randomFirstPlayer;
+        
+        // Update turn info based on who goes first
+        if (currentPlayer === playerSymbol) {
+            offlineTurnInfo.textContent = "Your Turn";
+        } else {
+            offlineTurnInfo.textContent = "AI's Turn";
+        }
+        
+        // If AI goes first, make AI move
+        if (currentPlayer === aiSymbol) {
+            makeAIMove();
+        }
     } else {
-        updateOfflineTurnInfo();
+        // For two-player mode, X always goes first
+        currentPlayer = 'x';
+        offlineTurnInfo.textContent = "Player 1's Turn (X)";
     }
 }
 
