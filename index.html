@@ -45,6 +45,16 @@
                         <option value="o">O</option>
                     </select>
                 </div>
+                
+                <div class="game-features">
+                    <h4>Game Features:</h4>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="enableUndo" checked>
+                            Enable Undo Move (one per player)
+                        </label>
+                    </div>
+                </div>
             </div>
             
             <div class="how-to-play">
@@ -66,8 +76,11 @@
                 <span id="offline-turn-info">Player X's Turn</span>
             </div>
             <div id="offline-board" class="board"></div>
-            <button id="offline-restart" class="btn">Restart Game</button>
-            <button id="offline-back" class="btn">Back to Menu</button>
+            <div class="game-controls">
+                <button id="offline-restart" class="btn">Restart Game</button>
+                <button id="offline-back" class="btn">Back to Menu</button>
+                <button id="offline-undo" class="btn action-btn" disabled>Undo Move (1)</button>
+            </div>
         </div>
         
         <div id="online-lobby" class="hidden">
@@ -107,8 +120,11 @@
                 <span id="connection-status"></span>
             </div>
             <div id="online-board" class="board"></div>
-            <button id="online-restart" class="btn">Restart Game</button>
-            <button id="exit-room" class="btn">Exit Room</button>
+            <div class="game-controls">
+                <button id="online-restart" class="btn">Restart Game</button>
+                <button id="exit-room" class="btn">Exit Room</button>
+                <button id="online-undo" class="btn action-btn" disabled>Undo Move (1)</button>
+            </div>
         </div>
     </div>
     

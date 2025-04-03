@@ -12,6 +12,7 @@ const offlineBoard = document.getElementById('offline-board');
 const offlineTurnInfo = document.getElementById('offline-turn-info');
 const offlineRestartBtn = document.getElementById('offline-restart');
 const offlineBackBtn = document.getElementById('offline-back');
+const offlineUndoBtn = document.getElementById('offline-undo');
 
 const createRoomBtn = document.getElementById('create-room-btn');
 const roomCreated = document.getElementById('room-created');
@@ -30,11 +31,13 @@ const onlineTurnInfo = document.getElementById('online-turn-info');
 const connectionStatus = document.getElementById('connection-status');
 const onlineRestartBtn = document.getElementById('online-restart');
 const exitRoomBtn = document.getElementById('exit-room');
+const onlineUndoBtn = document.getElementById('online-undo');
 
 // AI mode elements
 const symbolSelection = document.getElementById('symbolSelection');
 const playerSymbolSelect = document.getElementById('playerSymbol');
 const modeRadios = document.querySelectorAll('input[name="offlineMode"]');
+const enableUndoCheckbox = document.getElementById('enableUndo');
 
 // Game state variables
 let gridSize = 4; // Default grid size
@@ -48,6 +51,14 @@ let gameMode = 'twoPlayers'; // Default game mode
 let roomId = '';
 let roomRef = null;
 let aiThinking = false; // Flag to prevent clicks during AI turn
+
+// Undo feature variables
+let undoEnabled = true; // Default - undo is enabled
+let xUndoAvailable = true; // X has not used undo yet
+let oUndoAvailable = true; // O has not used undo yet
+let lastMove = null; // Store the last move for undo functionality
+let undoMode = false; // Flag to indicate when in undo mode (selecting a new position)
+let undoSourceCell = null; // Stores the cell being moved during undo
 
 // Check if Firebase is initialized and connected
 function isFirebaseConnected() {
@@ -68,6 +79,15 @@ function init() {
     joinRoomBtn.addEventListener('click', joinRoom);
     exitRoomBtn.addEventListener('click', exitRoom);
     onlineRestartBtn.addEventListener('click', requestRestartOnlineGame);
+    
+    // Undo button event listeners
+    offlineUndoBtn.addEventListener('click', handleOfflineUndo);
+    onlineUndoBtn.addEventListener('click', handleOnlineUndo);
+    
+    // Enable/disable undo checkbox
+    enableUndoCheckbox.addEventListener('change', function() {
+        undoEnabled = enableUndoCheckbox.checked;
+    });
     
     gridSizeSelect.addEventListener('change', function() {
         gridSize = parseInt(gridSizeSelect.value);
@@ -127,6 +147,7 @@ function startOfflineGame() {
     
     // Get the game mode and player symbol
     gameMode = document.querySelector('input[name="offlineMode"]:checked').value;
+    undoEnabled = enableUndoCheckbox.checked;
     
     if (gameMode === 'ai') {
         playerSymbol = playerSymbolSelect.value;
@@ -140,7 +161,15 @@ function startOfflineGame() {
     // Initialize game state
     currentPlayer = 'x';
     gameActive = true;
+    xUndoAvailable = true;
+    oUndoAvailable = true;
+    lastMove = null;
+    undoMode = false;
+    undoSourceCell = null;
+    
+    // Update UI
     updateOfflineTurnInfo();
+    updateOfflineUndoButton();
     
     // If AI goes first (AI is X), make the first move
     if (gameMode === 'ai' && aiSymbol === 'x') {
@@ -177,6 +206,25 @@ function handleOfflineCellClick(e) {
     const row = parseInt(e.target.dataset.row);
     const col = parseInt(e.target.dataset.col);
     
+    // If we're in undo mode (selecting where to place a removed symbol)
+    if (undoMode) {
+        // Make sure the target cell is empty
+        if (offlineGameBoard[row][col] !== '') return;
+        
+        // Place the symbol in the new location
+        offlineGameBoard[row][col] = currentPlayer;
+        e.target.textContent = currentPlayer.toUpperCase();
+        e.target.classList.add(currentPlayer);
+        
+        // Exit undo mode
+        undoMode = false;
+        
+        // Update turn info and check game state
+        checkGameStateAfterMove(row, col);
+        return;
+    }
+    
+    // Regular move handling
     // Check if the cell is already filled
     if (offlineGameBoard[row][col] !== '') return;
     
@@ -188,29 +236,11 @@ function handleOfflineCellClick(e) {
     e.target.textContent = currentPlayer.toUpperCase();
     e.target.classList.add(currentPlayer);
     
-    // Check for a winner (in Reverse Tic-Tac-Toe, three in a row loses)
-    if (checkWin(offlineGameBoard, currentPlayer, 3)) {
-        gameActive = false;
-        offlineTurnInfo.textContent = `Player ${currentPlayer.toUpperCase()} Loses!`;
-        highlightWinningCells(offlineBoard, offlineGameBoard, currentPlayer);
-        return;
-    }
+    // Store the last move for undo
+    lastMove = { row, col, player: currentPlayer };
     
-    // Check for a draw
-    if (checkDraw(offlineGameBoard)) {
-        gameActive = false;
-        offlineTurnInfo.textContent = "It's a Draw!";
-        return;
-    }
-    
-    // Switch player
-    currentPlayer = currentPlayer === 'x' ? 'o' : 'x';
-    updateOfflineTurnInfo();
-    
-    // If it's AI mode and AI's turn, make the AI move
-    if (gameMode === 'ai' && currentPlayer === aiSymbol && gameActive) {
-        makeAIMove();
-    }
+    // Check game state after the move
+    checkGameStateAfterMove(row, col);
 }
 
 function makeAIMove() {
@@ -288,6 +318,152 @@ function restartOfflineGame() {
     }
 }
 
+// Helper function to check game state after a move
+function checkGameStateAfterMove(row, col) {
+    // Check for a winner (in Reverse Tic-Tac-Toe, three in a row loses)
+    if (checkWin(offlineGameBoard, currentPlayer, 3)) {
+        gameActive = false;
+        offlineTurnInfo.textContent = `Player ${currentPlayer.toUpperCase()} Loses!`;
+        highlightWinningCells(offlineBoard, offlineGameBoard, currentPlayer);
+        offlineUndoBtn.disabled = true; // Disable undo button when game ends
+        return;
+    }
+    
+    // Check for a draw
+    if (checkDraw(offlineGameBoard)) {
+        gameActive = false;
+        offlineTurnInfo.textContent = "It's a Draw!";
+        offlineUndoBtn.disabled = true; // Disable undo button when game ends
+        return;
+    }
+    
+    // Switch player
+    currentPlayer = currentPlayer === 'x' ? 'o' : 'x';
+    updateOfflineTurnInfo();
+    updateOfflineUndoButton();
+    
+    // If it's AI mode and AI's turn, make the AI move
+    if (gameMode === 'ai' && currentPlayer === aiSymbol && gameActive) {
+        makeAIMove();
+    }
+}
+
+// Update the undo button state based on current player and undo availability
+function updateOfflineUndoButton() {
+    if (!undoEnabled) {
+        offlineUndoBtn.disabled = true;
+        offlineUndoBtn.textContent = "Undo Disabled";
+        return;
+    }
+    
+    const canUndo = currentPlayer === 'x' ? xUndoAvailable : oUndoAvailable;
+    
+    // In AI mode, only enable undo for the human player
+    if (gameMode === 'ai' && currentPlayer === aiSymbol) {
+        offlineUndoBtn.disabled = true;
+        offlineUndoBtn.textContent = "Undo Move (AI)";
+        return;
+    }
+    
+    if (lastMove !== null && canUndo && gameActive) {
+        offlineUndoBtn.disabled = false;
+        offlineUndoBtn.textContent = `Undo Move (${currentPlayer === 'x' ? '1' : '1'})`;
+    } else {
+        offlineUndoBtn.disabled = true;
+        if (!canUndo) {
+            offlineUndoBtn.textContent = "Undo Used";
+        } else {
+            offlineUndoBtn.textContent = "Undo Move (0)";
+        }
+    }
+}
+
+// Handle offline undo button click
+function handleOfflineUndo() {
+    if (!gameActive || !undoEnabled) return;
+    
+    // Check if current player has an undo available
+    const canUndo = currentPlayer === 'x' ? xUndoAvailable : oUndoAvailable;
+    if (!canUndo || lastMove === null) return;
+    
+    // For AI mode, we need special handling
+    if (gameMode === 'ai') {
+        // Only player should be able to undo
+        if (currentPlayer !== playerSymbol) return;
+        
+        // We need to undo both the player's move and the AI's move
+        const cells = offlineBoard.querySelectorAll('.cell');
+        
+        // First, find and undo the AI's last move (the current lastMove)
+        if (lastMove) {
+            const aiCellIndex = lastMove.row * gridSize + lastMove.col;
+            const aiCell = cells[aiCellIndex];
+            
+            offlineGameBoard[lastMove.row][lastMove.col] = '';
+            aiCell.textContent = '';
+            aiCell.classList.remove(aiSymbol);
+            
+            // Then find the player's move before that
+            let playerMoveFound = false;
+            for (let row = 0; row < gridSize; row++) {
+                for (let col = 0; col < gridSize; col++) {
+                    if (offlineGameBoard[row][col] === playerSymbol) {
+                        // Enter undo mode with this cell
+                        const cellIndex = row * gridSize + col;
+                        undoSourceCell = cells[cellIndex];
+                        
+                        // Clear the original cell
+                        offlineGameBoard[row][col] = '';
+                        undoSourceCell.textContent = '';
+                        undoSourceCell.classList.remove(playerSymbol);
+                        
+                        // Enter undo mode
+                        undoMode = true;
+                        offlineTurnInfo.textContent = `Select a new position for your ${playerSymbol.toUpperCase()}`;
+                        
+                        // Mark the player's undo as used
+                        if (playerSymbol === 'x') xUndoAvailable = false;
+                        else oUndoAvailable = false;
+                        
+                        playerMoveFound = true;
+                        break;
+                    }
+                }
+                if (playerMoveFound) break;
+            }
+            
+            if (!playerMoveFound) {
+                // If no player move was found, just reset undo mode
+                undoMode = false;
+                updateOfflineTurnInfo();
+            }
+            
+            updateOfflineUndoButton();
+        }
+    } else {
+        // For two-player mode, just enter undo mode for the current player
+        // Get the last move cell
+        const cells = offlineBoard.querySelectorAll('.cell');
+        const cellIndex = lastMove.row * gridSize + lastMove.col;
+        undoSourceCell = cells[cellIndex];
+        
+        // Clear the cell
+        offlineGameBoard[lastMove.row][lastMove.col] = '';
+        undoSourceCell.textContent = '';
+        undoSourceCell.classList.remove(currentPlayer);
+        
+        // Enter undo mode
+        undoMode = true;
+        offlineTurnInfo.textContent = `Select a new position for your ${currentPlayer.toUpperCase()}`;
+        
+        // Mark the player's undo as used
+        if (currentPlayer === 'x') xUndoAvailable = false;
+        else oUndoAvailable = false;
+        
+        updateOfflineUndoButton();
+    }
+}
+
 // Online Game Functions
 function createRoom() {
     console.log("createRoom function called");
@@ -326,6 +502,9 @@ function createRoom() {
     
     console.log("Generated room code:", roomId);
     
+    // Get undo setting from checkbox
+    undoEnabled = enableUndoCheckbox.checked;
+    
     // Create a new room in Firebase
     try {
         roomRef = firebase.database().ref('rooms/' + roomId);
@@ -345,6 +524,10 @@ function createRoom() {
             players: { 'x': true },
             gameActive: true,
             restartRequested: { 'x': false, 'o': false },
+            undoEnabled: undoEnabled,
+            undoAvailable: { 'x': true, 'o': true },
+            undoMode: false,
+            lastMove: null,
             lastUpdated: Date.now() // Add timestamp
         };
         
@@ -666,7 +849,10 @@ function updateGameDataFromSnapshot(snapshot) {
     
     // Update turn info
     if (data.gameActive) {
-        if (data.currentTurn === playerSymbol) {
+        if (data.undoMode && data.currentTurn === playerSymbol) {
+            onlineTurnInfo.textContent = `Select a new position for your ${playerSymbol.toUpperCase()}`;
+            onlineTurnInfo.style.color = playerSymbol === 'x' ? 'var(--x-color)' : 'var(--o-color)';
+        } else if (data.currentTurn === playerSymbol) {
             onlineTurnInfo.textContent = `Your Turn (${playerSymbol.toUpperCase()})`;
             // Add a visual indicator that it's your turn
             onlineTurnInfo.style.color = playerSymbol === 'x' ? 'var(--x-color)' : 'var(--o-color)';
@@ -697,6 +883,9 @@ function updateGameDataFromSnapshot(snapshot) {
             }
         }
     }
+    
+    // Update undo button
+    updateOnlineUndoButton();
     
     // Check win/draw conditions
     if (data.winner) {
@@ -838,6 +1027,32 @@ function handleOnlineCellClick(e) {
     
     console.log(`Cell clicked: row ${row}, col ${col}`);
     
+    // Check if we're in undo mode
+    if (onlineGameData.undoMode) {
+        // Make sure the cell is empty
+        if (onlineGameData.board[row][col] !== '') {
+            console.log("Cell already filled, ignoring undo placement");
+            return;
+        }
+        
+        // Create a deep copy of the board
+        const updatedBoard = JSON.parse(JSON.stringify(onlineGameData.board));
+        updatedBoard[row][col] = playerSymbol;
+        
+        // Exit undo mode and update the board
+        roomRef.update({
+            board: updatedBoard,
+            undoMode: false,
+            lastMove: { row, col, player: playerSymbol },
+            lastUpdated: Date.now()
+        }).catch(error => {
+            console.error("Error completing undo:", error);
+        });
+        
+        return;
+    }
+    
+    // Regular move handling
     // Check if the cell is already filled
     if (onlineGameData.board[row][col] !== '') {
         console.log("Cell already filled, ignoring click");
@@ -870,6 +1085,7 @@ function handleOnlineCellClick(e) {
     let updates = {
         board: updatedBoard,
         currentTurn: playerSymbol === 'x' ? 'o' : 'x',
+        lastMove: { row, col, player: playerSymbol },
         lastUpdated: Date.now()
     };
     
@@ -1157,6 +1373,65 @@ function highlightWinningCells(boardElement, boardData, player) {
             }
         }
     }
+}
+
+// Update online undo button based on game state
+function updateOnlineUndoButton() {
+    if (!onlineGameData || !onlineGameData.undoEnabled) {
+        onlineUndoBtn.disabled = true;
+        onlineUndoBtn.textContent = "Undo Disabled";
+        return;
+    }
+    
+    // Check if it's player's turn and they have an undo available
+    if (onlineGameData.currentTurn === playerSymbol && 
+        onlineGameData.gameActive && 
+        onlineGameData.undoAvailable && 
+        onlineGameData.undoAvailable[playerSymbol] &&
+        onlineGameData.lastMove) {
+        
+        onlineUndoBtn.disabled = false;
+        onlineUndoBtn.textContent = `Undo Move (1)`;
+    } else {
+        onlineUndoBtn.disabled = true;
+        
+        if (onlineGameData.undoAvailable && !onlineGameData.undoAvailable[playerSymbol]) {
+            onlineUndoBtn.textContent = "Undo Used";
+        } else {
+            onlineUndoBtn.textContent = "Undo Move (0)";
+        }
+    }
+}
+
+// Handle online undo button click
+function handleOnlineUndo() {
+    if (!onlineGameData || !onlineGameData.gameActive || !onlineGameData.undoEnabled) return;
+    
+    // Check if it's this player's turn and they have an undo available
+    if (onlineGameData.currentTurn !== playerSymbol ||
+        !onlineGameData.undoAvailable || 
+        !onlineGameData.undoAvailable[playerSymbol] ||
+        !onlineGameData.lastMove) return;
+    
+    // Get the last move
+    const lastMove = onlineGameData.lastMove;
+    
+    // Enter undo mode
+    roomRef.update({
+        undoMode: true,
+        undoAvailable: {
+            ...onlineGameData.undoAvailable,
+            [playerSymbol]: false // Mark this player's undo as used
+        },
+        // Clear the last moved cell
+        board: onlineGameData.board.map((row, r) => 
+            row.map((cell, c) => 
+                (r === lastMove.row && c === lastMove.col) ? '' : cell
+            )
+        )
+    }).catch(error => {
+        console.error("Error starting undo:", error);
+    });
 }
 
 // Check for room code in URL when the page loads
