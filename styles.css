@@ -433,9 +433,10 @@ select {
 
 /* Game Features */
 .game-features {
+    display: none; /* Hide the entire game features section */
     margin-top: 1rem;
     padding-top: 1rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--border-color);
 }
 
 .checkbox-group {
@@ -485,6 +486,13 @@ select {
     max-width: 200px;
 }
 
+.selection-note {
+    font-size: 0.9rem;
+    color: var(--subtitle-color);
+    font-style: italic;
+    margin-top: 0.5rem;
+}
+
 /* Media Queries for Responsive Design */
 @media (min-width: 768px) {
     .radio-group {
@@ -525,4 +533,27 @@ select {
     background-color: #555;
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+/* Undo Button - hide all undo button styling */
+.undo-btn {
+    display: none; /* Hide undo buttons */
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--lighter-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.undo-btn:hover:not(:disabled) {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.undo-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 } 
