@@ -18,12 +18,12 @@ function aiMove(board, humanSymbol, aiSymbol) {
     }
     
     // Iterative deepening parameters
-    const maxDepth = board.length === 5 ? 3 : 4;
+    const maxDepth = board.length === 5 ? 4 : 5; // Increased depth for better border handling
     let bestMove = null;
     let bestScore = -Infinity;
     let currentDepth = 1;
     const startTime = Date.now();
-    const timeLimit = 450; // 450ms to ensure we stay under 500ms total
+    const timeLimit = 800; // Increased time limit for deeper search
     
     // Try each depth until we hit the time limit or max depth
     while (currentDepth <= maxDepth && Date.now() - startTime < timeLimit) {
@@ -69,7 +69,14 @@ function sortMovesByPotential(board, moves, aiSymbol, humanSymbol) {
     const center = Math.floor(board.length / 2);
     
     return moves.sort((a, b) => {
-        // First, compare forcing potential
+        // First, check if either move blocks a border threat
+        const blocksBorderThreatA = blocksBorderThreat(board, a[0], a[1], humanSymbol);
+        const blocksBorderThreatB = blocksBorderThreat(board, b[0], b[1], humanSymbol);
+        
+        if (blocksBorderThreatA && !blocksBorderThreatB) return -1;
+        if (!blocksBorderThreatA && blocksBorderThreatB) return 1;
+        
+        // Then compare forcing potential
         const potentialA = getForcingPotential(board, a[0], a[1], aiSymbol, humanSymbol);
         const potentialB = getForcingPotential(board, b[0], b[1], aiSymbol, humanSymbol);
         
@@ -303,12 +310,26 @@ function evaluateLine(line, symbol) {
     
     // Two symbols with an empty space - dangerous and should be avoided
     if (symbolCount === 2 && emptyCount === 1) {
-        return -5;  // Negative score since this is bad for the player
+        // Check if this is a border line (contains cells at row 0, last row, col 0, or last col)
+        const isBorderLine = line.some(cell => {
+            const index = line.indexOf(cell);
+            return index === 0 || index === line.length - 1;
+        });
+        
+        // Double the threat weight for border lines
+        return isBorderLine ? -10 : -5;
     }
     
     // One symbol with two empty spaces - potential future line
     if (symbolCount === 1 && emptyCount === 2) {
-        return -1;  // Slightly negative
+        // Check if this is a border line
+        const isBorderLine = line.some(cell => {
+            const index = line.indexOf(cell);
+            return index === 0 || index === line.length - 1;
+        });
+        
+        // Double the potential weight for border lines
+        return isBorderLine ? -2 : -1;
     }
     
     return 0;
@@ -385,6 +406,81 @@ function checkWin(board, symbol, lineLength = 3) {
             }
             if (match) return true;
         }
+    }
+    
+    return false;
+}
+
+// Check if a move blocks a border threat
+function blocksBorderThreat(board, row, col, symbol) {
+    // Try the move
+    board[row][col] = symbol;
+    
+    // Check all possible lines that include this cell
+    const gridSize = board.length;
+    let blocksThreat = false;
+    
+    // Check horizontal
+    for (let c = Math.max(0, col - 2); c <= Math.min(gridSize - 3, col); c++) {
+        const line = [board[row][c], board[row][c+1], board[row][c+2]];
+        if (isBorderThreat(line, symbol)) {
+            blocksThreat = true;
+            break;
+        }
+    }
+    
+    // Check vertical
+    for (let r = Math.max(0, row - 2); r <= Math.min(gridSize - 3, row); r++) {
+        const line = [board[r][col], board[r+1][col], board[r+2][col]];
+        if (isBorderThreat(line, symbol)) {
+            blocksThreat = true;
+            break;
+        }
+    }
+    
+    // Check diagonals
+    // Top-left to bottom-right
+    for (let i = -2; i <= 2; i++) {
+        const r = row + i;
+        const c = col + i;
+        if (r >= 0 && r < gridSize - 2 && c >= 0 && c < gridSize - 2) {
+            const line = [board[r][c], board[r+1][c+1], board[r+2][c+2]];
+            if (isBorderThreat(line, symbol)) {
+                blocksThreat = true;
+                break;
+            }
+        }
+    }
+    
+    // Top-right to bottom-left
+    for (let i = -2; i <= 2; i++) {
+        const r = row + i;
+        const c = col - i;
+        if (r >= 0 && r < gridSize - 2 && c >= 2 && c < gridSize) {
+            const line = [board[r][c], board[r+1][c-1], board[r+2][c-2]];
+            if (isBorderThreat(line, symbol)) {
+                blocksThreat = true;
+                break;
+            }
+        }
+    }
+    
+    // Undo the move
+    board[row][col] = '';
+    
+    return blocksThreat;
+}
+
+// Check if a line is a border threat (two symbols with empty space on border)
+function isBorderThreat(line, symbol) {
+    const symbolCount = line.filter(cell => cell === symbol).length;
+    const emptyCount = line.filter(cell => cell === '').length;
+    
+    if (symbolCount === 2 && emptyCount === 1) {
+        // Check if this is a border line
+        return line.some((cell, index) => {
+            return (index === 0 || index === line.length - 1) && cell === '';
+        });
     }
     
     return false;
